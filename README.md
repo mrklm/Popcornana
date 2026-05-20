@@ -1,6 +1,6 @@
 # Popcornana
 
-Version actuelle: **1.0.10**
+Version actuelle: **1.0.11**
 
 Popcornana est une application desktop locale pour organiser une médiathèque de films et séries. Elle scanne un dossier de vidéos, nettoie les noms de fichiers, affiche les médias dans une grille visuelle, récupère des métadonnées depuis OMDb et/ou TMDb, garde les affiches en cache local, puis lance la lecture avec VLC avc le sous titre quand il est disponible.
 
@@ -200,9 +200,9 @@ Le workflow est défini dans `.github/workflows/release.yml`. Il peut être lanc
 Exemple de release:
 
 ```bash
-git tag v1.0.10
+git tag v1.0.11
 git push origin main
-git push origin v1.0.10
+git push origin v1.0.11
 ```
 
 Sur un tag, GitHub Actions construit les trois artefacts et les ajoute à la release GitHub correspondante.
@@ -259,6 +259,6 @@ Voir [docs/MACOS_CATALINA.md](docs/MACOS_CATALINA.md) pour les détails et limit
 
 ## Version
 
-La version actuelle est `1.0.10`.
+La version actuelle est `1.0.11`.
 
 Voir [CHANGELOG.md](CHANGELOG.md) pour le détail de l'état de la release.
