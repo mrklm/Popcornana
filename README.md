@@ -1,6 +1,6 @@
 # Popcornana
 
-Version actuelle: **1.0.8**
+Version actuelle: **1.0.9**
 
 Popcornana est une application desktop locale pour organiser une médiathèque de films et séries. Elle scanne un dossier de vidéos, nettoie les noms de fichiers, affiche les médias dans une grille visuelle, récupère des métadonnées depuis OMDb et/ou TMDb, garde les affiches en cache local, puis lance la lecture avec VLC avc le sous titre quand il est disponible.
 
@@ -18,7 +18,7 @@ L'application est pensée pour rester simple et locale: les fichiers vidéo rest
 - Panneau détail avec affiche, titre, note, résumé, chemin du fichier et bouton `Visionner`.
 - Résumé long contenu dans une zone scrollable.
 - Enrichissement automatique via OMDb.
-- Support TMDb conservé pour enrichissement automatique et recherche manuelle.
+- Recherches contextuelles TMDb/OMDb et édition manuelle des métadonnées depuis la grille.
 - Choix persistant des sources de métadonnées dans `Options avancées`.
 - Si OMDb et TMDb sont sélectionnés ensemble, TMDb est essayé en premier puis OMDb sert de secours.
 - Cache local des affiches dans `data/posters/`.
@@ -35,6 +35,8 @@ L'interface est divisée en deux onglets.
 
 Affiche la médiathèque sous forme de grille. Les séries apparaissent comme des dossiers ouvrables, puis leurs épisodes sont listés à l'intérieur. La sélection d'un média met à jour le panneau de droite avec les détails et le bouton `Visionner`.
 
+Un clic droit sur un film ou un épisode permet de lancer une recherche TMDb, une recherche OMDb ou une saisie manuelle du titre, de l'année, du résumé et de l'affiche.
+
 **Options**
 
 Regroupe les actions et réglages:
@@ -43,7 +45,6 @@ Regroupe les actions et réglages:
 - `Scanner`: analyse le dossier choisi et ajoute les vidéos détectées.
 - `Rafraîchir`: recharge la médiathèque et retire les entrées dont le fichier n'existe plus.
 - `Enrichir auto`: récupère les métadonnées avec les sources sélectionnées.
-- `Recherche manuelle`: lance la recherche TMDb sur le média sélectionné.
 - `Options avancées`: permet de choisir OMDb, TMDb ou les deux.
 - `Thème`: change le thème visuel de l'application.
 
@@ -158,9 +159,9 @@ Le workflow est défini dans `.github/workflows/release.yml`. Il peut être lanc
 Exemple de release:
 
 ```bash
-git tag v1.0.8
+git tag v1.0.9
 git push origin main
-git push origin v1.0.8
+git push origin v1.0.9
 ```
 
 Sur un tag, GitHub Actions construit les trois artefacts et les ajoute à la release GitHub correspondante.
@@ -196,6 +197,6 @@ python scripts/build_release.py --target linux-x64
 
 ## Version
 
-La version actuelle est `1.0.8`.
+La version actuelle est `1.0.9`.
 
 Voir [CHANGELOG.md](CHANGELOG.md) pour le détail de l'état de la release.
