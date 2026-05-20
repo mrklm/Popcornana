@@ -4,6 +4,12 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.10] - 2026-05-21
+
+- Protection des fiches modifiées manuellement contre l'enrichissement automatique.
+- Fusion des boutons `Scanner` et `Rafraîchir` en `Actualiser`.
+- Affichage d'une fenêtre de progression pendant la mise à jour des fiches.
+
 ## [1.0.9] - 2026-05-20
 
 - Suppression du bouton `Recherche manuelle` dans l'onglet Options.
