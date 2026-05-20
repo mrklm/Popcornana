@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -8,10 +9,14 @@ import tarfile
 import zipfile
 from pathlib import Path
 
+from PIL import Image
+
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DIST_DIR = ROOT_DIR / "dist"
 BUILD_DIR = ROOT_DIR / "build"
+ICON_SOURCE = ROOT_DIR / "assets" / "popcornana_ico.png"
+ICON_DIR = BUILD_DIR / "icons"
 
 
 def main() -> None:
@@ -21,7 +26,8 @@ def main() -> None:
 
     validate_target(args.target)
     clean_build_dirs()
-    run_pyinstaller(args.target)
+    icon_path = prepare_icon(args.target)
+    run_pyinstaller(args.target, icon_path)
     package_artifact(args.target)
 
 
@@ -41,7 +47,22 @@ def clean_build_dirs() -> None:
     shutil.rmtree(BUILD_DIR, ignore_errors=True)
 
 
-def run_pyinstaller(target: str) -> None:
+def prepare_icon(target: str) -> Path:
+    ICON_DIR.mkdir(parents=True, exist_ok=True)
+    if target == "windows-x64":
+        icon_path = ICON_DIR / "popcornana.ico"
+        image = Image.open(ICON_SOURCE).convert("RGBA")
+        image.save(icon_path, sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+        return icon_path
+    if target == "macos-intel":
+        icon_path = ICON_DIR / "popcornana.icns"
+        image = Image.open(ICON_SOURCE).convert("RGBA")
+        image.save(icon_path)
+        return icon_path
+    return ICON_SOURCE
+
+
+def run_pyinstaller(target: str, icon_path: Path) -> None:
     command = [
         sys.executable,
         "-m",
@@ -51,6 +72,8 @@ def run_pyinstaller(target: str) -> None:
         "--windowed",
         "--name",
         "Popcornana",
+        "--icon",
+        str(icon_path),
         "--add-data",
         add_data_arg("assets", "assets"),
         "--add-data",
@@ -60,7 +83,9 @@ def run_pyinstaller(target: str) -> None:
     if target in {"windows-x64", "linux-x64"}:
         command.insert(command.index("--windowed") + 1, "--onefile")
 
-    subprocess.run(command, cwd=ROOT_DIR, check=True)
+    env = os.environ.copy()
+    env["PYINSTALLER_CONFIG_DIR"] = str(BUILD_DIR / "pyinstaller-config")
+    subprocess.run(command, cwd=ROOT_DIR, env=env, check=True)
 
 
 def add_data_arg(source: str, destination: str) -> str:
@@ -73,6 +98,13 @@ def package_artifact(target: str) -> None:
     if target == "macos-intel":
         app_path = DIST_DIR / "Popcornana.app"
         zip_path = artifact_base.with_suffix(".zip")
+        if shutil.which("ditto"):
+            subprocess.run(
+                ["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(app_path), str(zip_path)],
+                check=True,
+            )
+            print(zip_path)
+            return
         zip_directory(app_path, zip_path)
         print(zip_path)
         return

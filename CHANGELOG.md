@@ -4,6 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.4] - 2026-05-20
+
+- Utilisation du runner `macos-15-intel` pour le build macOS Intel.
+- Utilisation de `popcornana_ico.png` comme icône applicative multi-OS.
+
 ## [1.0.3] - 2026-05-20
 
 - Agrandissement du logo dans l'onglet Options.

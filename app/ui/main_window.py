@@ -38,6 +38,7 @@ from app.version import APP_VERSION
 ASSETS_DIR = resource_path("assets")
 LOGO_PATH = ASSETS_DIR / "popcornana.png"
 STARTUP_IMAGE_PATH = ASSETS_DIR / "popcornana_ico.png"
+APP_ICON_PATH = STARTUP_IMAGE_PATH
 
 THEMES = {
     "[Sombre] Midnight Garage": dict(
@@ -119,6 +120,8 @@ class MainWindow(QMainWindow):
         self.current_item: MediaItem | None = None
 
         self.setWindowTitle(f"Popcornana {APP_VERSION}")
+        if APP_ICON_PATH.exists():
+            self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
         self.resize(1180, 760)
         self._build_ui()
         self._load_saved_state()
