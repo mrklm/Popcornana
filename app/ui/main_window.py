@@ -148,8 +148,8 @@ class MainWindow(QMainWindow):
         page_layout.setContentsMargins(18, 16, 18, 12)
         page_layout.setSpacing(12)
 
-        tabs = QTabWidget()
-        tabs.setObjectName("mainTabs")
+        self.tabs = QTabWidget()
+        self.tabs.setObjectName("mainTabs")
 
         self.grid = QListWidget()
         self.grid.setObjectName("libraryGrid")
@@ -243,7 +243,7 @@ class MainWindow(QMainWindow):
         library_layout.addWidget(self.grid, stretch=1)
         general_layout.addWidget(library_panel, stretch=1)
         general_layout.addWidget(details)
-        tabs.addTab(general_tab, "Général")
+        self.tabs.addTab(general_tab, "Général")
 
         options_tab = QWidget()
         options_tab.setObjectName("optionsTab")
@@ -280,8 +280,8 @@ class MainWindow(QMainWindow):
         refresh_button.clicked.connect(self.refresh_current_folder)
         buttons_layout.addWidget(refresh_button)
 
-        enrich_button = QPushButton("Enrichir auto")
-        enrich_button.clicked.connect(self.enrich_library_with_selected_sources)
+        enrich_button = QPushButton("Mettre à jour les fiches")
+        enrich_button.clicked.connect(self.update_metadata_with_progress)
         buttons_layout.addWidget(enrich_button)
 
         buttons_layout.addStretch()
@@ -321,7 +321,7 @@ class MainWindow(QMainWindow):
         sources_layout.addStretch()
         advanced_layout.addLayout(sources_layout)
 
-        source_hint = QLabel("Sources utilisées par Enrichir auto. Si les deux sont sélectionnées, TMDb est essayé en premier, OMDb sert de secours.")
+        source_hint = QLabel("Sources utilisées par Mettre à jour les fiches. Si les deux sont sélectionnées, TMDb est essayé en premier, OMDb sert de secours.")
         source_hint.setObjectName("hintLabel")
         source_hint.setWordWrap(True)
         advanced_layout.addWidget(source_hint)
@@ -380,9 +380,9 @@ class MainWindow(QMainWindow):
         theme_layout.addStretch()
         options_layout.addWidget(theme_section)
         options_layout.addStretch()
-        tabs.addTab(options_tab, "Options")
+        self.tabs.addTab(options_tab, "Options")
 
-        page_layout.addWidget(tabs, stretch=1)
+        page_layout.addWidget(self.tabs, stretch=1)
         self.setCentralWidget(page)
 
         self.setStatusBar(QStatusBar())
@@ -485,7 +485,23 @@ class MainWindow(QMainWindow):
         message += "."
         self.statusBar().showMessage(message)
 
-    def enrich_library_with_selected_sources(self) -> None:
+    def update_metadata_with_progress(self) -> None:
+        self.tabs.setCurrentIndex(0)
+        theme_name = self.repository.get_setting("theme") or DEFAULT_THEME
+        progress = StartupDialog(
+            THEMES.get(theme_name, THEMES[DEFAULT_THEME]),
+            self,
+            message="mise à jour des fiches",
+            status="préparation...",
+        )
+        progress.show_centered_over_parent()
+        QApplication.processEvents()
+        try:
+            self.enrich_library_with_selected_sources(progress.set_status)
+        finally:
+            progress.close()
+
+    def enrich_library_with_selected_sources(self, progress_callback=None) -> None:
         use_tmdb = self.tmdb_source_button.isChecked()
         use_omdb = self.omdb_source_button.isChecked()
         if not use_tmdb and not use_omdb:
@@ -504,7 +520,12 @@ class MainWindow(QMainWindow):
 
         updated = 0
         skipped_locked = 0
-        for item in self.repository.list_media():
+        items = self.repository.list_media()
+        total = len(items)
+        for index, item in enumerate(items, start=1):
+            if progress_callback:
+                progress_callback(f"{index}/{total} - {item.title[:32]}")
+                QApplication.processEvents()
             if item.metadata_locked:
                 skipped_locked += 1
                 continue
@@ -851,7 +872,14 @@ class MainWindow(QMainWindow):
 
 
 class StartupDialog(QDialog):
-    def __init__(self, theme: dict[str, str], parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        theme: dict[str, str],
+        parent: QWidget | None = None,
+        message: str = "actualisation de la bibliothèque",
+        wait: str = "Merci de patienter",
+        status: str = "scan en cours...",
+    ) -> None:
         super().__init__(parent)
         self.theme = theme
         self.setWindowTitle("Popcornana")
@@ -884,20 +912,20 @@ class StartupDialog(QDialog):
         image_label.setFixedSize(image_width, image_height)
         layout.addWidget(image_label, alignment=Qt.AlignHCenter)
 
-        message_label = QLabel("actualisation de la bibliothèque")
+        message_label = QLabel(message)
         message_label.setAlignment(Qt.AlignCenter)
         message_label.setObjectName("startupMessage")
         message_label.setWordWrap(True)
         message_label.setFixedSize(image_width, 42)
         layout.addWidget(message_label, alignment=Qt.AlignHCenter)
 
-        wait_label = QLabel("Merci de patienter")
+        wait_label = QLabel(wait)
         wait_label.setAlignment(Qt.AlignCenter)
         wait_label.setObjectName("startupWait")
         wait_label.setFixedWidth(image_width)
         layout.addWidget(wait_label, alignment=Qt.AlignHCenter)
 
-        self.status_label = QLabel("scan en cours...")
+        self.status_label = QLabel(status)
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setObjectName("startupStatus")
         self.status_label.setWordWrap(True)
