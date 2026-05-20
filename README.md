@@ -1,6 +1,6 @@
 # Popcornana
 
-Version actuelle: **1.0.5**
+Version actuelle: **1.0.6**
 
 Popcornana est une application desktop locale pour organiser une médiathèque de films et séries. Elle scanne un dossier de vidéos, nettoie les noms de fichiers, affiche les médias dans une grille visuelle, récupère des métadonnées depuis OMDb et/ou TMDb, garde les affiches en cache local, puis lance la lecture avec VLC avc le sous titre quand il est disponible.
 
@@ -11,9 +11,10 @@ L'application est pensée pour rester simple et locale: les fichiers vidéo rest
 
 - Scan récursif d'un dossier de médias.
 - Prise en charge des vidéos `.mkv`, `.mp4`, `.avi`, `.mov`.
-- Détection des films et épisodes de séries avec les formats `S01E01`, `1x01`, `Season 01 Episode 01`.
+- Détection des films et épisodes de séries avec les formats `S01E01`, `1x01`, `Season 01 Episode 01`, `Saison 01 Episode 01` et les dossiers `Saison 01/Episode 01`.
 - Nettoyage automatique des noms de fichiers: qualité, codec, source, langue, tags de release.
 - Affichage en grille avec affiche, titre et année.
+- Regroupement des épisodes dans des dossiers de séries pour garder la médiathèque lisible.
 - Panneau détail avec affiche, titre, note, résumé, chemin du fichier et bouton `Visionner`.
 - Résumé long contenu dans une zone scrollable.
 - Enrichissement automatique via OMDb.
@@ -32,7 +33,7 @@ L'interface est divisée en deux onglets.
 
 **Général**
 
-Affiche la médiathèque sous forme de grille. La sélection d'un média met à jour le panneau de droite avec les détails et le bouton `Visionner`.
+Affiche la médiathèque sous forme de grille. Les séries apparaissent comme des dossiers ouvrables, puis leurs épisodes sont listés à l'intérieur. La sélection d'un média met à jour le panneau de droite avec les détails et le bouton `Visionner`.
 
 **Options**
 
@@ -90,7 +91,49 @@ Film.mkv
 sous_titre_francais.srt
 ```
 
-## Installation
+## Installation macOS Catalina legacy
+
+Sur la branche `legacy-macos-catalina`, l'installation cible macOS Catalina 10.15.7 avec Python 3.8.
+
+Contraintes importantes:
+
+- Python 3.8 est compatible avec Catalina et cette branche.
+- `PySide6==6.2.4` est obligatoire: les versions plus récentes de Qt/PySide6 demandent macOS 11 ou plus.
+- Le lancement direct de test se fait avec `python main.py`.
+- Le build local se fait avec PyInstaller.
+
+Depuis la racine du projet:
+
+```bash
+python3.8 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+pip install pyinstaller
+cp .env.example .env
+```
+
+Puis renseigner les clés API dans `.env`.
+
+Test de lancement:
+
+```bash
+python main.py
+```
+
+Build de l'application Catalina:
+
+```bash
+pyinstaller --windowed --name Popcornana main.py
+```
+
+L'application générée se lance ensuite depuis:
+
+```text
+dist/Popcornana.app
+```
+
+## Installation récente
 
 Depuis la racine du projet:
 
@@ -157,9 +200,9 @@ Le workflow est défini dans `.github/workflows/release.yml`. Il peut être lanc
 Exemple de release:
 
 ```bash
-git tag v1.0.5
+git tag v1.0.6
 git push origin main
-git push origin v1.0.5
+git push origin v1.0.6
 ```
 
 Sur un tag, GitHub Actions construit les trois artefacts et les ajoute à la release GitHub correspondante.
@@ -197,26 +240,25 @@ python scripts/build_release.py --target linux-x64
 
 Une branche dédiée `legacy-macos-catalina` prépare une variante pour les Macs Intel limités à macOS Catalina 10.15.
 
-Cette variante utilise des dépendances épinglées dans:
-
-```text
-requirements-macos-catalina.txt
-requirements-build-macos-catalina.txt
-```
+Sur cette branche, `requirements.txt` épingle directement `PySide6==6.2.4` pour conserver la compatibilité avec Catalina et Python 3.8.2.
 
 Build local recommandé depuis un Mac Intel sous Catalina:
 
 ```bash
-python3.10 -m venv .venv-catalina
+python3.8 -m venv .venv-catalina
 source .venv-catalina/bin/activate
-python -m pip install -r requirements-macos-catalina.txt -r requirements-build-macos-catalina.txt
-python scripts/build_release.py --target macos-catalina-intel
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip install pyinstaller
+pyinstaller --windowed --name Popcornana main.py
 ```
+
+L'application générée se trouve dans `dist/Popcornana.app`.
 
 Voir [docs/MACOS_CATALINA.md](docs/MACOS_CATALINA.md) pour les détails et limites.
 
 ## Version
 
-La version actuelle est `1.0.5`.
+La version actuelle est `1.0.6`.
 
 Voir [CHANGELOG.md](CHANGELOG.md) pour le détail de l'état de la release.

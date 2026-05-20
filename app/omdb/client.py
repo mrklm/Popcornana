@@ -17,7 +17,7 @@ OMDB_API_BASE = "https://www.omdbapi.com/"
 PLACEHOLDER_KEYS = {"", "xxxxxxxx", "xxxx", "ta_cle_omdb", "ta_cle_omdb_ici"}
 
 
-@dataclass(slots=True)
+@dataclass
 class OmdbResult:
     imdb_id: str
     media_type: str

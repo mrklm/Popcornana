@@ -17,7 +17,7 @@ TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
 PLACEHOLDER_KEYS = {"", "xxxxxxxx", "xxxx", "ta_cle_tmdb", "ta_cle_tmdb_ici"}
 
 
-@dataclass(slots=True)
+@dataclass
 class TmdbResult:
     tmdb_id: int
     media_type: str

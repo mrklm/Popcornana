@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-@dataclass(slots=True)
+@dataclass
 class MediaItem:
     filepath: Path
     media_type: str
@@ -23,4 +23,3 @@ class MediaItem:
     @property
     def display_year(self) -> str:
         return str(self.year) if self.year else ""
-

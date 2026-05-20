@@ -8,28 +8,28 @@ La branche principale utilise une pile récente (`PySide6>=6.7`) et les runners 
 
 Pour Catalina, on isole une pile plus ancienne:
 
-- Python 3.10 ;
-- PySide6 6.2.4 ;
-- PyInstaller 5.13.2 ;
-- cible de build `macos-catalina-intel` ;
-- variable `MACOSX_DEPLOYMENT_TARGET=10.15` définie par le script de build.
+- Python 3.8 compatible Catalina ;
+- PySide6 6.2.4 obligatoire ;
+- PyInstaller pour générer l'application `.app`.
 
 ## Build recommandé
 
 Le build Catalina doit idéalement être lancé depuis un Mac Intel sous macOS Catalina 10.15.
 
 ```bash
-python3.10 -m venv .venv-catalina
+python3.8 -m venv .venv-catalina
 source .venv-catalina/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements-macos-catalina.txt -r requirements-build-macos-catalina.txt
-python scripts/build_release.py --target macos-catalina-intel
+python -m pip install -r requirements.txt
+python -m pip install pyinstaller
+python main.py
+pyinstaller --windowed --name Popcornana main.py
 ```
 
 Artefact attendu:
 
 ```text
-dist/Popcornana-macos-catalina-intel.zip
+dist/Popcornana.app
 ```
 
 ## Limite importante

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import sys
 from pathlib import Path
 
@@ -110,6 +111,13 @@ THEMES = {
 DEFAULT_THEME = "[Sombre] Midnight Garage"
 
 
+@dataclass
+class LibraryEntry:
+    kind: str
+    title: str
+    items: list[MediaItem]
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -119,6 +127,9 @@ class MainWindow(QMainWindow):
         self.omdb = OmdbClient()
         self.items: list[MediaItem] = []
         self.current_item: MediaItem | None = None
+        self.entries: list[LibraryEntry] = []
+        self.current_entry: LibraryEntry | None = None
+        self.current_series_title: str | None = None
 
         self.setWindowTitle(f"Popcornana {APP_VERSION}")
         if APP_ICON_PATH.exists():
@@ -146,6 +157,22 @@ class MainWindow(QMainWindow):
         self.grid.setSpacing(14)
         self.grid.setUniformItemSizes(True)
         self.grid.currentRowChanged.connect(self.select_item)
+        self.grid.itemActivated.connect(self.activate_item)
+
+        self.back_button = QPushButton("Retour")
+        self.back_button.clicked.connect(self.close_series_folder)
+        self.back_button.setVisible(False)
+
+        self.library_context_label = QLabel("Médiathèque")
+        self.library_context_label.setObjectName("sectionTitle")
+
+        library_header = QWidget()
+        library_header_layout = QHBoxLayout(library_header)
+        library_header_layout.setContentsMargins(0, 0, 0, 0)
+        library_header_layout.setSpacing(8)
+        library_header_layout.addWidget(self.back_button)
+        library_header_layout.addWidget(self.library_context_label)
+        library_header_layout.addStretch()
 
         self.poster_label = QLabel()
         self.poster_label.setObjectName("posterLabel")
@@ -182,8 +209,8 @@ class MainWindow(QMainWindow):
         self.path_label.setWordWrap(True)
         self.path_label.setStyleSheet("color: #6b7280;")
 
-        play_button = QPushButton("Visionner")
-        play_button.clicked.connect(self.play_current)
+        self.play_button = QPushButton("Visionner")
+        self.play_button.clicked.connect(self.play_current)
 
         details = QWidget()
         details.setObjectName("detailsPanel")
@@ -196,14 +223,20 @@ class MainWindow(QMainWindow):
         details_layout.addWidget(self.meta_label)
         details_layout.addWidget(overview_scroll)
         details_layout.addWidget(self.path_label)
-        details_layout.addWidget(play_button)
+        details_layout.addWidget(self.play_button)
 
         general_tab = QWidget()
         general_tab.setObjectName("generalTab")
         general_layout = QHBoxLayout(general_tab)
         general_layout.setContentsMargins(0, 0, 0, 0)
         general_layout.setSpacing(18)
-        general_layout.addWidget(self.grid, stretch=1)
+        library_panel = QWidget()
+        library_layout = QVBoxLayout(library_panel)
+        library_layout.setContentsMargins(0, 0, 0, 0)
+        library_layout.setSpacing(8)
+        library_layout.addWidget(library_header)
+        library_layout.addWidget(self.grid, stretch=1)
+        general_layout.addWidget(library_panel, stretch=1)
         general_layout.addWidget(details)
         tabs.addTab(general_tab, "Général")
 
@@ -568,19 +601,20 @@ class MainWindow(QMainWindow):
 
     def refresh_library(self) -> None:
         self.items = self.repository.list_media()
+        if self.current_series_title and not self._series_items(self.current_series_title):
+            self.current_series_title = None
+        self.entries = self._visible_entries()
         self.grid.clear()
-        for index, item in enumerate(self.items):
-            label = item.title
-            if item.year:
-                label += f"\n{item.year}"
-            if item.media_type == "tv" and item.season and item.episode:
-                label += f"\nS{item.season:02d}E{item.episode:02d}"
-            list_item = QListWidgetItem(self._icon_for_item(item), label)
+        self.back_button.setVisible(self.current_series_title is not None)
+        self.library_context_label.setText(self.current_series_title or "Médiathèque")
+
+        for index, entry in enumerate(self.entries):
+            list_item = QListWidgetItem(self._icon_for_entry(entry), self._label_for_entry(entry))
             list_item.setTextAlignment(Qt.AlignCenter)
             list_item.setData(Qt.UserRole, index)
             list_item.setSizeHint(QSize(180, 285))
             self.grid.addItem(list_item)
-        if self.items:
+        if self.entries:
             self.grid.setCurrentRow(0)
         else:
             self._show_empty_details()
@@ -589,11 +623,20 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"{len(self.items)} média(s) trouvé(s).")
 
     def select_item(self, row: int) -> None:
-        if row < 0 or row >= len(self.items):
+        if row < 0 or row >= len(self.entries):
             self.current_item = None
+            self.current_entry = None
             return
-        item = self.items[row]
+        entry = self.entries[row]
+        self.current_entry = entry
+        if entry.kind == "series":
+            self._show_series_details(entry)
+            return
+
+        item = entry.items[0]
         self.current_item = item
+        self.play_button.setText("Visionner")
+        self.play_button.setEnabled(True)
         self.title_label.setText(item.title)
         meta = [item.media_type.upper()]
         if item.year:
@@ -608,17 +651,100 @@ class MainWindow(QMainWindow):
         self._set_detail_poster(item)
 
     def play_current(self) -> None:
+        if self.current_entry and self.current_entry.kind == "series":
+            self.open_series_folder(self.current_entry.title)
+            return
         if not self.current_item:
             return
         open_media(self.current_item.filepath)
 
+    def activate_item(self, _item: QListWidgetItem) -> None:
+        if self.current_entry and self.current_entry.kind == "series":
+            self.open_series_folder(self.current_entry.title)
+        else:
+            self.play_current()
+
+    def open_series_folder(self, title: str) -> None:
+        self.current_series_title = title
+        self.refresh_library()
+
+    def close_series_folder(self) -> None:
+        self.current_series_title = None
+        self.refresh_library()
+
     def _show_empty_details(self) -> None:
         self.current_item = None
+        self.current_entry = None
         self.poster_label.setText("Aucune affiche")
         self.title_label.setText("Médiathèque vide")
         self.meta_label.setText("")
         self.overview_label.setText("Choisis un dossier puis lance un scan.")
         self.path_label.setText("")
+        self.play_button.setText("Visionner")
+        self.play_button.setEnabled(False)
+
+    def _show_series_details(self, entry: LibraryEntry) -> None:
+        self.current_item = None
+        seasons = sorted({item.season for item in entry.items if item.season})
+        meta = ["SERIE", f"{len(entry.items)} épisode(s)"]
+        if seasons:
+            meta.append(f"{len(seasons)} saison(s)")
+        self.title_label.setText(entry.title)
+        self.meta_label.setText(" | ".join(meta))
+        self.overview_label.setText("Ouvre la série pour afficher ses épisodes.")
+        self.path_label.setText("")
+        self.play_button.setText("Ouvrir la série")
+        self.play_button.setEnabled(True)
+        self._set_detail_poster(entry.items[0])
+
+    def _visible_entries(self) -> list[LibraryEntry]:
+        if self.current_series_title:
+            return [
+                LibraryEntry("episode", item.title, [item])
+                for item in self._series_items(self.current_series_title)
+            ]
+
+        entries: list[LibraryEntry] = []
+        series_groups: dict[str, list[MediaItem]] = {}
+        series_titles: dict[str, str] = {}
+        for item in self.items:
+            if item.media_type == "tv" and item.season and item.episode:
+                key = series_key(item.title)
+                series_groups.setdefault(key, []).append(item)
+                series_titles.setdefault(key, item.title)
+            else:
+                entries.append(LibraryEntry("movie", item.title, [item]))
+
+        for key, group_items in series_groups.items():
+            group_items.sort(key=episode_sort_key)
+            entries.append(LibraryEntry("series", series_titles[key], group_items))
+
+        return sorted(entries, key=lambda entry: entry.title.casefold())
+
+    def _series_items(self, title: str) -> list[MediaItem]:
+        key = series_key(title)
+        episodes = [
+            item for item in self.items
+            if item.media_type == "tv" and item.season and item.episode and series_key(item.title) == key
+        ]
+        return sorted(episodes, key=episode_sort_key)
+
+    def _label_for_entry(self, entry: LibraryEntry) -> str:
+        if entry.kind == "series":
+            seasons = sorted({item.season for item in entry.items if item.season})
+            season_label = f"{len(seasons)} saison(s)" if seasons else "Série"
+            return f"{entry.title}\n{season_label}\n{len(entry.items)} épisode(s)"
+
+        item = entry.items[0]
+        label = item.title
+        if item.year:
+            label += f"\n{item.year}"
+        if entry.kind == "episode" and item.season and item.episode:
+            label += f"\nS{item.season:02d}E{item.episode:02d}"
+        return label
+
+    def _icon_for_entry(self, entry: LibraryEntry) -> QIcon:
+        return self._icon_for_item(entry.items[0])
 
     def _icon_for_item(self, item: MediaItem) -> QIcon:
         poster = local_poster_path(item.poster_path)
@@ -784,6 +910,19 @@ def media_signature(item: MediaItem) -> tuple:
         item.poster_path,
         item.backdrop_path,
         item.tmdb_id,
+    )
+
+
+def series_key(title: str) -> str:
+    return " ".join(title.casefold().split())
+
+
+def episode_sort_key(item: MediaItem) -> tuple:
+    return (
+        item.season if item.season is not None else 999,
+        item.episode if item.episode is not None else 999,
+        item.title.casefold(),
+        str(item.filepath).casefold(),
     )
 
 

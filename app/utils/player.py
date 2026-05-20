@@ -13,6 +13,14 @@ SUBTITLE_EXTENSIONS = (".srt", ".ass", ".ssa", ".sub", ".vtt")
 def open_media(path: str | Path) -> None:
     media_path = Path(path)
     subtitle_path = find_subtitle(media_path)
+
+    if sys.platform == "darwin" and find_vlc_app():
+        command = ["open", "-a", "VLC", str(media_path)]
+        if subtitle_path:
+            command.extend(["--args", "--sub-file", str(subtitle_path)])
+        subprocess.Popen(command)
+        return
+
     vlc_path = find_vlc()
     if vlc_path:
         command = [vlc_path, str(media_path)]
@@ -47,3 +55,10 @@ def find_vlc() -> str | None:
         if macos_vlc.exists():
             return str(macos_vlc)
     return shutil.which("vlc") or shutil.which("VLC")
+
+
+def find_vlc_app() -> Path | None:
+    macos_vlc = Path("/Applications/VLC.app")
+    if macos_vlc.exists():
+        return macos_vlc
+    return None
