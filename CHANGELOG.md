@@ -4,6 +4,12 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.10] - 2026-05-20
+
+- Suppression du bouton `Recherche manuelle` dans l'onglet Options.
+- Ajout d'un menu clic droit sur les médias avec recherches TMDb/OMDb et édition manuelle.
+- Ajout d'une saisie manuelle du titre, de l'année, du résumé et de l'affiche.
+
 ## [1.0.9] - 2026-05-20
 
 - Build Catalina: collecte complète de PySide6 pour embarquer les plugins Qt nécessaires aux images PNG.

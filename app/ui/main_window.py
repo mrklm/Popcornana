@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import shutil
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QSize, QTimer, Qt
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtCore import QPoint, QSize, QTimer, Qt
+from PySide6.QtGui import QAction, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -18,20 +19,22 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
     QScrollArea,
     QStatusBar,
     QTabWidget,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
 from app.database.repository import MediaRepository
 from app.models.media import MediaItem
-from app.omdb.client import OmdbClient
+from app.omdb.client import OmdbClient, apply_omdb_result
 from app.scanner.video_scanner import scan_videos
-from app.tmdb.client import TmdbClient, TmdbResult, apply_tmdb_result
+from app.tmdb.client import TmdbClient, apply_tmdb_result
 from app.utils.paths import POSTERS_DIR, ensure_data_dirs, resource_path
 from app.utils.player import open_media
 from app.version import APP_VERSION
@@ -158,6 +161,8 @@ class MainWindow(QMainWindow):
         self.grid.setUniformItemSizes(True)
         self.grid.currentRowChanged.connect(self.select_item)
         self.grid.itemActivated.connect(self.activate_item)
+        self.grid.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.grid.customContextMenuRequested.connect(self.show_library_context_menu)
 
         self.back_button = QPushButton("Retour")
         self.back_button.clicked.connect(self.close_series_folder)
@@ -283,9 +288,6 @@ class MainWindow(QMainWindow):
         enrich_button.clicked.connect(self.enrich_library_with_selected_sources)
         buttons_layout.addWidget(enrich_button)
 
-        manual_button = QPushButton("Recherche manuelle")
-        manual_button.clicked.connect(self.manual_search_current)
-        buttons_layout.addWidget(manual_button)
         buttons_layout.addStretch()
         actions_layout.addLayout(buttons_layout)
 
@@ -580,7 +582,7 @@ class MainWindow(QMainWindow):
         self.refresh_library()
         self.statusBar().showMessage(f"{updated} média(s) enrichi(s) avec OMDb.")
 
-    def manual_search_current(self) -> None:
+    def search_tmdb_current(self) -> None:
         if not self.current_item:
             return
         if not self.tmdb.is_configured:
@@ -591,13 +593,58 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.critical(self, "TMDb", f"Recherche impossible: {exc}")
             return
-        dialog = ManualMatchDialog(self.current_item, results, self)
+        if not results:
+            QMessageBox.information(self, "TMDb", "Aucun résultat trouvé.")
+            return
+        dialog = MetadataMatchDialog("TMDb", self.current_item, results, self)
         if dialog.exec() == QDialog.Accepted and dialog.selected_result:
             item = apply_tmdb_result(self.current_item, dialog.selected_result)
             if item.poster_path:
                 self.tmdb.download_poster(item.poster_path)
             self.repository.upsert_media(item)
             self.refresh_library()
+
+    def search_omdb_current(self) -> None:
+        if not self.current_item:
+            return
+        if not self.omdb.is_configured:
+            QMessageBox.warning(self, "OMDb", "Ajoute OMDB_API_KEY dans un fichier .env pour lancer la recherche.")
+            return
+        try:
+            results = self.omdb.search(self.current_item)
+        except Exception as exc:
+            QMessageBox.critical(self, "OMDb", f"Recherche impossible: {exc}")
+            return
+        if not results:
+            QMessageBox.information(self, "OMDb", "Aucun résultat trouvé.")
+            return
+        dialog = MetadataMatchDialog("OMDb", self.current_item, results, self)
+        if dialog.exec() == QDialog.Accepted and dialog.selected_result:
+            previous_poster = self.current_item.poster_path
+            item = apply_omdb_result(self.current_item, dialog.selected_result)
+            poster = self.omdb.download_poster(dialog.selected_result)
+            if poster:
+                item.poster_path = str(poster.relative_to(POSTERS_DIR))
+            else:
+                item.poster_path = previous_poster
+            self.repository.upsert_media(item)
+            self.refresh_library()
+
+    def edit_metadata_current(self) -> None:
+        if not self.current_item:
+            return
+        dialog = ManualMetadataDialog(self.current_item, self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        item = self.current_item
+        item.title = dialog.title
+        item.year = dialog.year
+        item.overview = dialog.overview
+        if dialog.poster_path:
+            saved_poster = save_manual_poster(dialog.poster_path)
+            item.poster_path = str(saved_poster.relative_to(POSTERS_DIR))
+        self.repository.upsert_media(item)
+        self.refresh_library()
 
     def refresh_library(self) -> None:
         self.items = self.repository.list_media()
@@ -663,6 +710,33 @@ class MainWindow(QMainWindow):
             self.open_series_folder(self.current_entry.title)
         else:
             self.play_current()
+
+    def show_library_context_menu(self, position: QPoint) -> None:
+        list_item = self.grid.itemAt(position)
+        if not list_item:
+            return
+        row = self.grid.row(list_item)
+        if row < 0 or row >= len(self.entries):
+            return
+        self.grid.setCurrentRow(row)
+        entry = self.entries[row]
+        if entry.kind == "series":
+            return
+
+        menu = QMenu(self)
+        tmdb_action = QAction("Recherche TMDb", self)
+        tmdb_action.triggered.connect(self.search_tmdb_current)
+        menu.addAction(tmdb_action)
+
+        omdb_action = QAction("Recherche OMDb", self)
+        omdb_action.triggered.connect(self.search_omdb_current)
+        menu.addAction(omdb_action)
+
+        manual_action = QAction("Recherche manuelle", self)
+        manual_action.triggered.connect(self.edit_metadata_current)
+        menu.addAction(manual_action)
+
+        menu.exec(self.grid.mapToGlobal(position))
 
     def open_series_folder(self, title: str) -> None:
         self.current_series_title = title
@@ -859,12 +933,12 @@ class StartupDialog(QDialog):
         self.status_label.setText(message)
 
 
-class ManualMatchDialog(QDialog):
-    def __init__(self, item: MediaItem, results: list[TmdbResult], parent: QWidget | None = None) -> None:
+class MetadataMatchDialog(QDialog):
+    def __init__(self, source_name: str, item: MediaItem, results: list, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.selected_result: TmdbResult | None = None
+        self.selected_result = None
         self.results = results
-        self.setWindowTitle("Validation manuelle TMDb")
+        self.setWindowTitle(f"Validation {source_name}")
         self.resize(560, 420)
 
         layout = QVBoxLayout(self)
@@ -873,7 +947,8 @@ class ManualMatchDialog(QDialog):
         self.list_widget = QListWidget()
         for index, result in enumerate(results):
             year = f" ({result.year})" if result.year else ""
-            row = QListWidgetItem(f"{result.title}{year} - score {result.score:.0f}")
+            score = f" - score {result.score:.0f}" if result.score is not None else ""
+            row = QListWidgetItem(f"{result.title}{year}{score}")
             row.setData(Qt.UserRole, index)
             self.list_widget.addItem(row)
         if results:
@@ -893,10 +968,112 @@ class ManualMatchDialog(QDialog):
         super().accept()
 
 
+class ManualMetadataDialog(QDialog):
+    def __init__(self, item: MediaItem, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.poster_path: Path | None = None
+        self.title = item.title
+        self.year = item.year
+        self.overview = item.overview
+        self.setWindowTitle("Recherche manuelle")
+        self.resize(620, 520)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"Fichier: {item.filepath.name}"))
+
+        title_layout = QHBoxLayout()
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setSpacing(8)
+        title_layout.addWidget(QLabel("Titre"))
+        self.title_field = QLineEdit(item.title)
+        title_layout.addWidget(self.title_field, stretch=1)
+        layout.addLayout(title_layout)
+
+        year_layout = QHBoxLayout()
+        year_layout.setContentsMargins(0, 0, 0, 0)
+        year_layout.setSpacing(8)
+        year_layout.addWidget(QLabel("Année"))
+        self.year_field = QLineEdit(str(item.year) if item.year else "")
+        self.year_field.setPlaceholderText("ex: 1999")
+        year_layout.addWidget(self.year_field, stretch=1)
+        layout.addLayout(year_layout)
+
+        layout.addWidget(QLabel("Résumé"))
+        self.overview_field = QTextEdit()
+        self.overview_field.setPlainText(item.overview or "")
+        layout.addWidget(self.overview_field, stretch=1)
+
+        poster_layout = QHBoxLayout()
+        poster_layout.setContentsMargins(0, 0, 0, 0)
+        poster_layout.setSpacing(8)
+        self.poster_label_field = QLineEdit()
+        self.poster_label_field.setReadOnly(True)
+        self.poster_label_field.setPlaceholderText("Aucune nouvelle affiche choisie")
+        browse_button = QPushButton("Parcourir")
+        browse_button.clicked.connect(self.choose_poster)
+        poster_layout.addWidget(QLabel("Affiche"))
+        poster_layout.addWidget(self.poster_label_field, stretch=1)
+        poster_layout.addWidget(browse_button)
+        layout.addLayout(poster_layout)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def choose_poster(self) -> None:
+        filename, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            "Choisir une affiche",
+            "",
+            "Images (*.png *.jpg *.jpeg *.webp)",
+        )
+        if not filename:
+            return
+        self.poster_path = Path(filename)
+        self.poster_label_field.setText(filename)
+
+    def accept(self) -> None:
+        title = self.title_field.text().strip()
+        if not title:
+            QMessageBox.warning(self, "Recherche manuelle", "Le titre ne peut pas être vide.")
+            return
+
+        year_text = self.year_field.text().strip()
+        year = None
+        if year_text:
+            if not year_text.isdigit() or len(year_text) != 4:
+                QMessageBox.warning(self, "Recherche manuelle", "L'année doit contenir 4 chiffres.")
+                return
+            year = int(year_text)
+
+        self.title = title
+        self.year = year
+        self.overview = self.overview_field.toPlainText().strip() or None
+        super().accept()
+
+
 def local_poster_path(poster_path: str | None) -> Path | None:
     if not poster_path:
         return None
+    path = Path(poster_path)
+    if path.is_absolute():
+        return path
     return POSTERS_DIR / poster_path.lstrip("/")
+
+
+def save_manual_poster(source: Path) -> Path:
+    target_dir = POSTERS_DIR / "manual"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    suffix = source.suffix.lower() or ".jpg"
+    base_name = "".join(char if char.isalnum() else "_" for char in source.stem).strip("_") or "poster"
+    target = target_dir / f"{base_name}{suffix}"
+    counter = 1
+    while target.exists():
+        target = target_dir / f"{base_name}_{counter}{suffix}"
+        counter += 1
+    shutil.copy2(source, target)
+    return target
 
 
 def media_signature(item: MediaItem) -> tuple:
