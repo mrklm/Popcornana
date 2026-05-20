@@ -36,6 +36,9 @@ class OmdbClient:
         self.api_key = api_key or getenv("OMDB_API_KEY")
         self.session = requests.Session()
 
+    def set_api_key(self, api_key: str | None) -> None:
+        self.api_key = api_key
+
     @property
     def is_configured(self) -> bool:
         return bool(self.api_key and self.api_key.strip().lower() not in PLACEHOLDER_KEYS)

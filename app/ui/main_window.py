@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -293,6 +294,41 @@ class MainWindow(QMainWindow):
         source_hint.setObjectName("hintLabel")
         source_hint.setWordWrap(True)
         advanced_layout.addWidget(source_hint)
+
+        keys_layout = QVBoxLayout()
+        keys_layout.setContentsMargins(0, 4, 0, 0)
+        keys_layout.setSpacing(8)
+
+        omdb_key_layout = QHBoxLayout()
+        omdb_key_layout.setContentsMargins(0, 0, 0, 0)
+        omdb_key_layout.setSpacing(8)
+        omdb_key_label = QLabel("Clé OMDb")
+        omdb_key_label.setObjectName("fieldLabel")
+        self.omdb_key_field = QLineEdit()
+        self.omdb_key_field.setObjectName("apiKeyField")
+        self.omdb_key_field.setEchoMode(QLineEdit.Password)
+        self.omdb_key_field.setPlaceholderText("OMDB_API_KEY")
+        omdb_key_layout.addWidget(omdb_key_label)
+        omdb_key_layout.addWidget(self.omdb_key_field, stretch=1)
+        keys_layout.addLayout(omdb_key_layout)
+
+        tmdb_key_layout = QHBoxLayout()
+        tmdb_key_layout.setContentsMargins(0, 0, 0, 0)
+        tmdb_key_layout.setSpacing(8)
+        tmdb_key_label = QLabel("Clé TMDb")
+        tmdb_key_label.setObjectName("fieldLabel")
+        self.tmdb_key_field = QLineEdit()
+        self.tmdb_key_field.setObjectName("apiKeyField")
+        self.tmdb_key_field.setEchoMode(QLineEdit.Password)
+        self.tmdb_key_field.setPlaceholderText("TMDB_API_KEY")
+        tmdb_key_layout.addWidget(tmdb_key_label)
+        tmdb_key_layout.addWidget(self.tmdb_key_field, stretch=1)
+        keys_layout.addLayout(tmdb_key_layout)
+
+        save_keys_button = QPushButton("Enregistrer les clés API")
+        save_keys_button.clicked.connect(self.save_api_keys)
+        keys_layout.addWidget(save_keys_button, alignment=Qt.AlignLeft)
+        advanced_layout.addLayout(keys_layout)
         options_layout.addWidget(advanced_section)
 
         theme_section = QWidget()
@@ -326,6 +362,7 @@ class MainWindow(QMainWindow):
         if folder:
             self.folder_label.setText(folder)
         self.load_source_preferences()
+        self.load_api_keys()
         theme_name = self.repository.get_setting("theme") or DEFAULT_THEME
         if theme_name not in THEMES:
             theme_name = DEFAULT_THEME
@@ -361,6 +398,23 @@ class MainWindow(QMainWindow):
     def save_source_preferences(self, _checked: bool | None = None) -> None:
         self.repository.set_setting("metadata_source_tmdb", "1" if self.tmdb_source_button.isChecked() else "0")
         self.repository.set_setting("metadata_source_omdb", "1" if self.omdb_source_button.isChecked() else "0")
+
+    def load_api_keys(self) -> None:
+        omdb_key = self.repository.get_setting("omdb_api_key") or self.omdb.api_key or ""
+        tmdb_key = self.repository.get_setting("tmdb_api_key") or self.tmdb.api_key or ""
+        self.omdb_key_field.setText(omdb_key)
+        self.tmdb_key_field.setText(tmdb_key)
+        self.omdb.set_api_key(omdb_key)
+        self.tmdb.set_api_key(tmdb_key)
+
+    def save_api_keys(self) -> None:
+        omdb_key = self.omdb_key_field.text().strip()
+        tmdb_key = self.tmdb_key_field.text().strip()
+        self.repository.set_setting("omdb_api_key", omdb_key)
+        self.repository.set_setting("tmdb_api_key", tmdb_key)
+        self.omdb.set_api_key(omdb_key)
+        self.tmdb.set_api_key(tmdb_key)
+        self.statusBar().showMessage("Clés API enregistrées.")
 
     def apply_theme(self, theme_name: str) -> None:
         theme = THEMES[theme_name]
@@ -586,8 +640,9 @@ class MainWindow(QMainWindow):
 
 
 class StartupDialog(QDialog):
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, theme: dict[str, str], parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.theme = theme
         self.setWindowTitle("Popcornana")
         self.setModal(True)
         self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
@@ -639,28 +694,31 @@ class StartupDialog(QDialog):
         layout.addWidget(self.status_label, alignment=Qt.AlignHCenter)
         layout.addStretch()
 
+        self.apply_theme()
+
+    def apply_theme(self) -> None:
         self.setStyleSheet(
-            """
-            QDialog {
-                background: #151515;
-                color: #EAEAEA;
-                border: 1px solid #FF9800;
-            }
-            QLabel#startupMessage {
-                color: #EAEAEA;
+            f"""
+            QDialog {{
+                background: {self.theme["BG"]};
+                color: {self.theme["FG"]};
+                border: 1px solid {self.theme["ACCENT"]};
+            }}
+            QLabel#startupMessage {{
+                color: {self.theme["FG"]};
                 font-size: 16px;
                 font-weight: 700;
-            }
-            QLabel#startupWait {
-                color: #EAEAEA;
+            }}
+            QLabel#startupWait {{
+                color: {self.theme["FG"]};
                 font-size: 13px;
                 font-weight: 600;
-            }
-            QLabel#startupStatus {
-                color: #FF9800;
+            }}
+            QLabel#startupStatus {{
+                color: {self.theme["ACCENT"]};
                 font-size: 12px;
                 font-weight: 600;
-            }
+            }}
             """
         )
 
@@ -783,6 +841,11 @@ def build_stylesheet(theme: dict[str, str]) -> str:
         QLabel#hintLabel {{
             color: {theme["FG"]};
         }}
+        QLabel#fieldLabel {{
+            color: {theme["FG"]};
+            min-width: 72px;
+            font-weight: 700;
+        }}
         QLabel#themeLabel, QLabel#metaLabel, QLabel#sectionTitle {{
             color: {theme["ACCENT"]};
             font-weight: 700;
@@ -827,6 +890,18 @@ def build_stylesheet(theme: dict[str, str]) -> str:
             font-weight: 600;
         }}
         QComboBox:hover {{
+            border-color: {theme["ACCENT"]};
+        }}
+        QLineEdit#apiKeyField {{
+            background: {theme["FIELD"]};
+            color: {theme["FIELD_FG"]};
+            border: 1px solid {theme["PANEL"]};
+            border-radius: 6px;
+            padding: 8px 10px;
+            min-height: 24px;
+            font-weight: 600;
+        }}
+        QLineEdit#apiKeyField:hover, QLineEdit#apiKeyField:focus {{
             border-color: {theme["ACCENT"]};
         }}
         QComboBox QAbstractItemView {{
@@ -885,7 +960,8 @@ def run() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName("Popcornana")
     window = MainWindow()
-    startup = StartupDialog(window)
+    theme_name = window.repository.get_setting("theme") or DEFAULT_THEME
+    startup = StartupDialog(THEMES.get(theme_name, THEMES[DEFAULT_THEME]), window)
 
     def finish_startup() -> None:
         startup.close()
