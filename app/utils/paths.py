@@ -20,7 +20,22 @@ def app_data_dir() -> Path:
 
 
 def resource_path(*parts: str) -> Path:
-    return RESOURCE_DIR.joinpath(*parts)
+    candidates = [RESOURCE_DIR.joinpath(*parts)]
+    if getattr(sys, "frozen", False) and sys.platform == "darwin":
+        executable_path = Path(sys.executable).resolve()
+        contents_dir = executable_path.parent.parent
+        candidates.extend(
+            [
+                contents_dir / "Resources" / Path(*parts),
+                executable_path.parent / Path(*parts),
+            ]
+        )
+    candidates.append(ROOT_DIR.joinpath(*parts))
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
 
 
 DATA_DIR = app_data_dir()
