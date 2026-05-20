@@ -43,7 +43,7 @@ Regroupe les actions et réglages:
 
 - `Choisir dossier`: définit le dossier à scanner.
 - `Actualiser`: analyse le dossier choisi, ajoute les vidéos détectées et retire les entrées dont le fichier n'existe plus.
-- `Enrichir auto`: récupère les métadonnées avec les sources sélectionnées.
+- `Mettre à jour les fiches`: récupère les métadonnées avec les sources sélectionnées et affiche une fenêtre de progression.
 - `Options avancées`: permet de choisir OMDb, TMDb ou les deux.
 - `Thème`: change le thème visuel de l'application.
 
