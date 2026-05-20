@@ -21,7 +21,11 @@ ICON_DIR = BUILD_DIR / "icons"
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build a Popcornana release artifact for the current OS.")
-    parser.add_argument("--target", required=True, choices=["macos-intel", "windows-x64", "linux-x64"])
+    parser.add_argument(
+        "--target",
+        required=True,
+        choices=["macos-intel", "macos-catalina-intel", "windows-x64", "linux-x64"],
+    )
     args = parser.parse_args()
 
     validate_target(args.target)
@@ -33,11 +37,13 @@ def main() -> None:
 
 def validate_target(target: str) -> None:
     current_targets = {
-        "darwin": "macos-intel",
+        "darwin": {"macos-intel", "macos-catalina-intel"},
         "win32": "windows-x64",
         "linux": "linux-x64",
     }
     expected = current_targets.get(sys.platform)
+    if isinstance(expected, set) and target in expected:
+        return
     if expected != target:
         raise SystemExit(f"Target {target!r} must be built on {expected or sys.platform!r}.")
 
@@ -54,7 +60,7 @@ def prepare_icon(target: str) -> Path:
         image = Image.open(ICON_SOURCE).convert("RGBA")
         image.save(icon_path, sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
         return icon_path
-    if target == "macos-intel":
+    if target in {"macos-intel", "macos-catalina-intel"}:
         icon_path = ICON_DIR / "popcornana.icns"
         image = Image.open(ICON_SOURCE).convert("RGBA")
         image.save(icon_path)
@@ -82,9 +88,13 @@ def run_pyinstaller(target: str, icon_path: Path) -> None:
     ]
     if target in {"windows-x64", "linux-x64"}:
         command.insert(command.index("--windowed") + 1, "--onefile")
+    if target in {"macos-intel", "macos-catalina-intel"}:
+        command.extend(["--target-architecture", "x86_64"])
 
     env = os.environ.copy()
     env["PYINSTALLER_CONFIG_DIR"] = str(BUILD_DIR / "pyinstaller-config")
+    if target == "macos-catalina-intel":
+        env["MACOSX_DEPLOYMENT_TARGET"] = "10.15"
     subprocess.run(command, cwd=ROOT_DIR, env=env, check=True)
 
 
@@ -95,7 +105,7 @@ def add_data_arg(source: str, destination: str) -> str:
 
 def package_artifact(target: str) -> None:
     artifact_base = DIST_DIR / f"Popcornana-{target}"
-    if target == "macos-intel":
+    if target in {"macos-intel", "macos-catalina-intel"}:
         app_path = DIST_DIR / "Popcornana.app"
         zip_path = artifact_base.with_suffix(".zip")
         if shutil.which("ditto"):

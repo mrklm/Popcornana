@@ -193,6 +193,28 @@ Linux:
 python scripts/build_release.py --target linux-x64
 ```
 
+## Build macOS Catalina legacy
+
+Une branche dédiée `legacy-macos-catalina` prépare une variante pour les Macs Intel limités à macOS Catalina 10.15.
+
+Cette variante utilise des dépendances épinglées dans:
+
+```text
+requirements-macos-catalina.txt
+requirements-build-macos-catalina.txt
+```
+
+Build local recommandé depuis un Mac Intel sous Catalina:
+
+```bash
+python3.10 -m venv .venv-catalina
+source .venv-catalina/bin/activate
+python -m pip install -r requirements-macos-catalina.txt -r requirements-build-macos-catalina.txt
+python scripts/build_release.py --target macos-catalina-intel
+```
+
+Voir [docs/MACOS_CATALINA.md](docs/MACOS_CATALINA.md) pour les détails et limites.
+
 ## Version
 
 La version actuelle est `1.0.5`.
