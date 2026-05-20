@@ -30,12 +30,12 @@ from app.models.media import MediaItem
 from app.omdb.client import OmdbClient
 from app.scanner.video_scanner import scan_videos
 from app.tmdb.client import TmdbClient, TmdbResult, apply_tmdb_result
-from app.utils.paths import POSTERS_DIR, ensure_data_dirs
+from app.utils.paths import POSTERS_DIR, ensure_data_dirs, resource_path
 from app.utils.player import open_media
 from app.version import APP_VERSION
 
 
-ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
+ASSETS_DIR = resource_path("assets")
 LOGO_PATH = ASSETS_DIR / "popcornana.png"
 STARTUP_IMAGE_PATH = ASSETS_DIR / "popcornana_ico.png"
 
@@ -212,7 +212,7 @@ class MainWindow(QMainWindow):
         self.logo_label = QLabel()
         self.logo_label.setObjectName("logoLabel")
         self.logo_label.setAlignment(Qt.AlignCenter)
-        self.logo_label.setFixedSize(160, 120)
+        self.logo_label.setFixedSize(320, 240)
         self._load_logo()
         options_layout.addWidget(self.logo_label, alignment=Qt.AlignHCenter)
 
@@ -316,7 +316,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(page)
 
         self.setStatusBar(QStatusBar())
-        self.statusBar().showMessage("This product uses the TMDB API but is not endorsed or certified by TMDB.")
+        self.show_media_count_status()
 
     def _load_saved_state(self) -> None:
         folder = self.repository.get_setting("media_folder")
@@ -334,7 +334,7 @@ class MainWindow(QMainWindow):
     def _load_logo(self) -> None:
         if not LOGO_PATH.exists():
             return
-        pixmap = QPixmap(str(LOGO_PATH)).scaled(160, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        pixmap = QPixmap(str(LOGO_PATH)).scaled(320, 240, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.logo_label.setPixmap(pixmap)
 
     def change_theme(self, theme_name: str) -> None:
@@ -386,7 +386,7 @@ class MainWindow(QMainWindow):
         for item in scanned:
             self.repository.upsert_media(item)
         self.refresh_library()
-        self.statusBar().showMessage(f"{len(scanned)} vidéo(s) détectée(s).")
+        self.show_media_count_status()
 
     def reload_library(self, show_status: bool = True) -> None:
         removed = self.repository.delete_missing_media()
@@ -394,9 +394,9 @@ class MainWindow(QMainWindow):
         if not show_status:
             return
         if removed:
-            self.statusBar().showMessage(f"Médiathèque rafraîchie, {removed} fichier(s) absent(s) retiré(s).")
+            self.statusBar().showMessage(f"{len(self.items)} média(s) trouvé(s), {removed} fichier(s) absent(s) retiré(s).")
         else:
-            self.statusBar().showMessage("Médiathèque rafraîchie.")
+            self.show_media_count_status()
 
     def enrich_library_with_selected_sources(self) -> None:
         use_tmdb = self.tmdb_source_button.isChecked()
@@ -527,6 +527,9 @@ class MainWindow(QMainWindow):
             self.grid.setCurrentRow(0)
         else:
             self._show_empty_details()
+
+    def show_media_count_status(self) -> None:
+        self.statusBar().showMessage(f"{len(self.items)} média(s) trouvé(s).")
 
     def select_item(self, row: int) -> None:
         if row < 0 or row >= len(self.items):

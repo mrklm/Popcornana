@@ -4,6 +4,12 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.3] - 2026-05-20
+
+- Agrandissement du logo dans l'onglet Options.
+- Remplacement du message de barre d'état par le nombre de médias trouvés.
+- Ajout d'un workflow de build multi-OS avec artefacts macOS Intel, Windows et Linux.
+
 ## [1.0.2] - 2026-05-20
 
 - Ajout d'un message de patience et du statut d'actualisation au démarrage.

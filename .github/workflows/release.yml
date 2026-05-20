@@ -1,0 +1,77 @@
+name: Build releases
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: macos-intel
+            os: macos-13
+            artifact_pattern: dist/Popcornana-macos-intel.zip
+          - target: windows-x64
+            os: windows-latest
+            artifact_pattern: dist/Popcornana-windows-x64.zip
+          - target: linux-x64
+            os: ubuntu-latest
+            artifact_pattern: dist/Popcornana-linux-x64.tar.gz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Linux Qt runtime libraries
+        if: matrix.target == 'linux-x64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-build.txt
+
+      - name: Build artifact
+        run: python scripts/build_release.py --target ${{ matrix.target }}
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Popcornana-${{ matrix.target }}
+          path: ${{ matrix.artifact_pattern }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download workflow artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Publish GitHub release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/Popcornana-macos-intel/Popcornana-macos-intel.zip
+            release-assets/Popcornana-windows-x64/Popcornana-windows-x64.zip
+            release-assets/Popcornana-linux-x64/Popcornana-linux-x64.tar.gz

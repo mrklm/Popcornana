@@ -1,6 +1,6 @@
 # Popcornana
 
-Version actuelle: **1.0.2**
+Version actuelle: **1.0.3**
 
 Popcornana est une application desktop locale pour organiser une médiathèque de films et séries. Elle scanne un dossier de vidéos, nettoie les noms de fichiers, affiche les médias dans une grille visuelle, récupère des métadonnées depuis OMDb et/ou TMDb, garde les affiches en cache local, puis lance la lecture avec VLC quand il est disponible.
 
@@ -145,44 +145,57 @@ CHANGELOG.md   historique des versions
 
 ## Build multi-OS
 
-Il n'y a pas encore de build multi-OS automatisé en place.
+Le projet dispose d'un workflow GitHub Actions pour générer des releases distinctes par OS.
 
-État actuel:
+Artefacts produits:
 
-- pas de fichier `.spec` PyInstaller versionné ;
-- pas de workflow GitHub Actions ;
-- pas de script de build unique ;
-- pas de génération automatique macOS/Windows/Linux.
+- `Popcornana-macos-intel.zip`: application `.app` macOS Intel ;
+- `Popcornana-windows-x64.zip`: exécutable Windows x64 ;
+- `Popcornana-linux-x64.tar.gz`: exécutable Linux x64.
 
-Les commandes PyInstaller ci-dessous sont des bases de travail, mais elles n'ont pas encore été stabilisées en pipeline de release.
+Le workflow est défini dans `.github/workflows/release.yml`. Il peut être lancé manuellement depuis l'onglet Actions de GitHub, ou automatiquement en poussant un tag `v*`.
+
+Exemple de release:
+
+```bash
+git tag v1.0.3
+git push origin main
+git push origin v1.0.3
+```
+
+Sur un tag, GitHub Actions construit les trois artefacts et les ajoute à la release GitHub correspondante.
+
+Pour construire localement sur l'OS courant:
+
+```bash
+python -m pip install -r requirements.txt -r requirements-build.txt
+python scripts/build_release.py --target macos-intel
+python scripts/build_release.py --target windows-x64
+python scripts/build_release.py --target linux-x64
+```
+
+Seule la cible correspondant au système courant est réellement prévue pour un build local fiable. Le build multi-OS complet passe par GitHub Actions.
 
 macOS:
 
 ```bash
-pyinstaller --windowed --name Popcornana main.py
+python scripts/build_release.py --target macos-intel
 ```
 
 Windows:
 
 ```bash
-pyinstaller --onefile --windowed --name Popcornana main.py
+python scripts/build_release.py --target windows-x64
 ```
 
 Linux:
 
 ```bash
-pyinstaller --onefile --name Popcornana main.py
+python scripts/build_release.py --target linux-x64
 ```
-
-Pour un vrai build multi-OS, la prochaine étape serait d'ajouter:
-
-- un fichier `Popcornana.spec` ;
-- l'inclusion explicite de `assets/`, `.env.example` et des dossiers `data/cache`, `data/posters` ;
-- un script `scripts/build.py` ou `Makefile` ;
-- un workflow CI qui construit séparément sur macOS, Windows et Linux.
 
 ## Version
 
-La version actuelle est `1.0.0`.
+La version actuelle est `1.0.3`.
 
 Voir [CHANGELOG.md](CHANGELOG.md) pour le détail de l'état de la release.
