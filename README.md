@@ -1,6 +1,6 @@
 # Popcornana
 
-Version actuelle: **1.0.5**
+Version actuelle: **1.0.6**
 
 Popcornana est une application desktop locale pour organiser une médiathèque de films et séries. Elle scanne un dossier de vidéos, nettoie les noms de fichiers, affiche les médias dans une grille visuelle, récupère des métadonnées depuis OMDb et/ou TMDb, garde les affiches en cache local, puis lance la lecture avec VLC avc le sous titre quand il est disponible.
 
@@ -11,9 +11,10 @@ L'application est pensée pour rester simple et locale: les fichiers vidéo rest
 
 - Scan récursif d'un dossier de médias.
 - Prise en charge des vidéos `.mkv`, `.mp4`, `.avi`, `.mov`.
-- Détection des films et épisodes de séries avec les formats `S01E01`, `1x01`, `Season 01 Episode 01`.
+- Détection des films et épisodes de séries avec les formats `S01E01`, `1x01`, `Season 01 Episode 01`, `Saison 01 Episode 01` et les dossiers `Saison 01/Episode 01`.
 - Nettoyage automatique des noms de fichiers: qualité, codec, source, langue, tags de release.
 - Affichage en grille avec affiche, titre et année.
+- Regroupement des épisodes dans des dossiers de séries pour garder la médiathèque lisible.
 - Panneau détail avec affiche, titre, note, résumé, chemin du fichier et bouton `Visionner`.
 - Résumé long contenu dans une zone scrollable.
 - Enrichissement automatique via OMDb.
@@ -32,7 +33,7 @@ L'interface est divisée en deux onglets.
 
 **Général**
 
-Affiche la médiathèque sous forme de grille. La sélection d'un média met à jour le panneau de droite avec les détails et le bouton `Visionner`.
+Affiche la médiathèque sous forme de grille. Les séries apparaissent comme des dossiers ouvrables, puis leurs épisodes sont listés à l'intérieur. La sélection d'un média met à jour le panneau de droite avec les détails et le bouton `Visionner`.
 
 **Options**
 
@@ -157,9 +158,9 @@ Le workflow est défini dans `.github/workflows/release.yml`. Il peut être lanc
 Exemple de release:
 
 ```bash
-git tag v1.0.5
+git tag v1.0.6
 git push origin main
-git push origin v1.0.5
+git push origin v1.0.6
 ```
 
 Sur un tag, GitHub Actions construit les trois artefacts et les ajoute à la release GitHub correspondante.
@@ -195,6 +196,6 @@ python scripts/build_release.py --target linux-x64
 
 ## Version
 
-La version actuelle est `1.0.5`.
+La version actuelle est `1.0.6`.
 
 Voir [CHANGELOG.md](CHANGELOG.md) pour le détail de l'état de la release.

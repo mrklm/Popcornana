@@ -4,6 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.6] - 2026-05-20
+
+- Regroupement des épisodes dans des dossiers de séries.
+- Détection des structures de séries `Saison/Episode` et `Season/Episode`.
+
 ## [1.0.5] - 2026-05-20
 
 - Ajout de champs API OMDb/TMDb et application du thème à la fenêtre de démarrage.

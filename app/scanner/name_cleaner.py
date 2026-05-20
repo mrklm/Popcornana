@@ -42,9 +42,12 @@ EPISODE_PATTERNS = (
     re.compile(r"\bS(?P<season>\d{1,2})E(?P<episode>\d{1,3})\b", re.IGNORECASE),
     re.compile(r"\b(?P<season>\d{1,2})x(?P<episode>\d{1,3})\b", re.IGNORECASE),
     re.compile(r"\bSeason[ ._-]?(?P<season>\d{1,2})[ ._-]+Episode[ ._-]?(?P<episode>\d{1,3})\b", re.IGNORECASE),
+    re.compile(r"\bSaison[ ._-]?(?P<season>\d{1,2})[ ._-]+(?:Episode|Épisode)[ ._-]?(?P<episode>\d{1,3})\b", re.IGNORECASE),
 )
 
 YEAR_PATTERN = re.compile(r"(?:^|[ ._(-])(?P<year>19\d{2}|20\d{2})(?:$|[ ._)-])")
+SEASON_FOLDER_PATTERN = re.compile(r"\b(?:Season|Saison|S)[ ._-]?(?P<season>\d{1,2})\b", re.IGNORECASE)
+EPISODE_ONLY_PATTERN = re.compile(r"\b(?:Episode|Épisode|Ep|E)[ ._-]?(?P<episode>\d{1,3})\b", re.IGNORECASE)
 
 
 def is_video_file(path: Path) -> bool:
@@ -66,6 +69,15 @@ def parse_media_filename(path: Path) -> dict[str, int | str | None]:
             stem = stem[: match.start()]
             break
 
+    if media_type == "movie":
+        season_from_folder = find_season_from_parent(path)
+        episode_match = EPISODE_ONLY_PATTERN.search(stem)
+        if season_from_folder and episode_match:
+            media_type = "tv"
+            season = season_from_folder
+            episode = int(episode_match.group("episode"))
+            stem = stem[: episode_match.start()]
+
     year = None
     year_match = YEAR_PATTERN.search(stem)
     if year_match:
@@ -74,7 +86,7 @@ def parse_media_filename(path: Path) -> dict[str, int | str | None]:
 
     title = clean_title(stem)
     if not title:
-        title = clean_title(path.parent.name) if media_type == "tv" else path.stem
+        title = parent_series_title(path) if media_type == "tv" else path.stem
 
     return {
         "media_type": media_type,
@@ -83,6 +95,21 @@ def parse_media_filename(path: Path) -> dict[str, int | str | None]:
         "season": season,
         "episode": episode,
     }
+
+
+def find_season_from_parent(path: Path) -> int | None:
+    for parent in (path.parent, path.parent.parent):
+        match = SEASON_FOLDER_PATTERN.search(parent.name)
+        if match:
+            return int(match.group("season"))
+    return None
+
+
+def parent_series_title(path: Path) -> str:
+    parent = path.parent
+    if SEASON_FOLDER_PATTERN.search(parent.name):
+        parent = parent.parent
+    return clean_title(parent.name)
 
 
 def clean_title(raw_name: str) -> str:
