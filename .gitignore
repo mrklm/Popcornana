@@ -1,0 +1,13 @@
+.venv/
+.DS_Store
+__pycache__/
+*.pyc
+.env
+media.db
+data/posters/*
+data/cache/*
+!data/posters/.gitkeep
+!data/cache/.gitkeep
+dist/
+build/
+*.spec
