@@ -19,6 +19,7 @@ class MediaItem:
     tmdb_id: int | None = None
     season: int | None = None
     episode: int | None = None
+    metadata_locked: bool = False
 
     @property
     def display_year(self) -> str:

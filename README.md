@@ -22,7 +22,7 @@ L'application est pensée pour rester simple et locale: les fichiers vidéo rest
 - Choix persistant des sources de métadonnées dans `Options avancées`.
 - Si OMDb et TMDb sont sélectionnés ensemble, TMDb est essayé en premier puis OMDb sert de secours.
 - Cache local des affiches dans `data/posters/`.
-- Nettoyage des fichiers disparus via `Rafraîchir`.
+- Actualisation unique de la médiathèque: ajout des nouveaux fichiers et retrait des fichiers disparus.
 - Sélecteur de thème persistant.
 - Lecture via VLC si disponible, sinon lecteur par défaut du système.
 - Détection automatique des sous-titres présents dans le même dossier que la vidéo.
@@ -42,8 +42,7 @@ Un clic droit sur un film ou un épisode permet de lancer une recherche TMDb, un
 Regroupe les actions et réglages:
 
 - `Choisir dossier`: définit le dossier à scanner.
-- `Scanner`: analyse le dossier choisi et ajoute les vidéos détectées.
-- `Rafraîchir`: recharge la médiathèque et retire les entrées dont le fichier n'existe plus.
+- `Actualiser`: analyse le dossier choisi, ajoute les vidéos détectées et retire les entrées dont le fichier n'existe plus.
 - `Enrichir auto`: récupère les métadonnées avec les sources sélectionnées.
 - `Options avancées`: permet de choisir OMDb, TMDb ou les deux.
 - `Thème`: change le thème visuel de l'application.

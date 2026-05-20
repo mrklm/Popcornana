@@ -46,10 +46,17 @@ class MediaRepository:
                     tmdb_id INTEGER,
                     season INTEGER,
                     episode INTEGER,
+                    metadata_locked INTEGER DEFAULT 0,
                     added_at TEXT
                 )
                 """
             )
+            columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(media)").fetchall()
+            }
+            if "metadata_locked" not in columns:
+                connection.execute("ALTER TABLE media ADD COLUMN metadata_locked INTEGER DEFAULT 0")
 
     def get_setting(self, key: str) -> str | None:
         with self._connect() as connection:
@@ -73,22 +80,63 @@ class MediaRepository:
                 """
                 INSERT INTO media (
                     filepath, media_type, title, original_title, year, overview, genres,
-                    vote_average, poster_path, backdrop_path, tmdb_id, season, episode, added_at
+                    vote_average, poster_path, backdrop_path, tmdb_id, season, episode,
+                    metadata_locked, added_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(filepath) DO UPDATE SET
-                    media_type = excluded.media_type,
-                    title = excluded.title,
-                    original_title = COALESCE(excluded.original_title, media.original_title),
-                    year = COALESCE(excluded.year, media.year),
-                    overview = COALESCE(excluded.overview, media.overview),
-                    genres = COALESCE(excluded.genres, media.genres),
-                    vote_average = COALESCE(excluded.vote_average, media.vote_average),
-                    poster_path = COALESCE(excluded.poster_path, media.poster_path),
-                    backdrop_path = COALESCE(excluded.backdrop_path, media.backdrop_path),
-                    tmdb_id = COALESCE(excluded.tmdb_id, media.tmdb_id),
-                    season = excluded.season,
-                    episode = excluded.episode
+                    media_type = CASE
+                        WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.media_type
+                        ELSE excluded.media_type
+                    END,
+                    title = CASE
+                        WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.title
+                        ELSE excluded.title
+                    END,
+                    original_title = CASE
+                        WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.original_title
+                        ELSE COALESCE(excluded.original_title, media.original_title)
+                    END,
+                    year = CASE
+                        WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.year
+                        ELSE COALESCE(excluded.year, media.year)
+                    END,
+                    overview = CASE
+                        WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.overview
+                        ELSE COALESCE(excluded.overview, media.overview)
+                    END,
+                    genres = CASE
+                        WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.genres
+                        ELSE COALESCE(excluded.genres, media.genres)
+                    END,
+                    vote_average = CASE
+                        WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.vote_average
+                        ELSE COALESCE(excluded.vote_average, media.vote_average)
+                    END,
+                    poster_path = CASE
+                        WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.poster_path
+                        ELSE COALESCE(excluded.poster_path, media.poster_path)
+                    END,
+                    backdrop_path = CASE
+                        WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.backdrop_path
+                        ELSE COALESCE(excluded.backdrop_path, media.backdrop_path)
+                    END,
+                    tmdb_id = CASE
+                        WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.tmdb_id
+                        ELSE COALESCE(excluded.tmdb_id, media.tmdb_id)
+                    END,
+                    season = CASE
+                        WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.season
+                        ELSE excluded.season
+                    END,
+                    episode = CASE
+                        WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.episode
+                        ELSE excluded.episode
+                    END,
+                    metadata_locked = CASE
+                        WHEN excluded.metadata_locked = 1 THEN 1
+                        ELSE media.metadata_locked
+                    END
                 """,
                 (
                     str(item.filepath),
@@ -104,6 +152,7 @@ class MediaRepository:
                     item.tmdb_id,
                     item.season,
                     item.episode,
+                    1 if item.metadata_locked else 0,
                     datetime.now(timezone.utc).isoformat(),
                 ),
             )
@@ -144,4 +193,5 @@ class MediaRepository:
             tmdb_id=row["tmdb_id"],
             season=row["season"],
             episode=row["episode"],
+            metadata_locked=bool(row["metadata_locked"]),
         )
