@@ -9,6 +9,7 @@ Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTI
 - Compatibilité macOS Catalina: épinglage de `PySide6==6.2.4`.
 - Compatibilité Python 3.8: remplacement des dataclasses avec `slots=True`.
 - Documentation Catalina mise à jour avec Python 3.8, PyInstaller et lancement via `dist/Popcornana.app`.
+- Commande de build Catalina corrigée pour inclure les images du dossier `assets`.
 - Lancement VLC corrigé sur macOS pour ouvrir le lecteur au premier plan.
 - Regroupement des épisodes dans des dossiers de séries.
 - Détection des structures de séries `Saison/Episode` et `Season/Episode`.

@@ -124,7 +124,7 @@ python main.py
 Build de l'application Catalina:
 
 ```bash
-pyinstaller --windowed --name Popcornana main.py
+python -m PyInstaller --windowed --name Popcornana --add-data "assets:assets" main.py
 ```
 
 L'application générée se lance ensuite depuis:
@@ -250,7 +250,7 @@ source .venv-catalina/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m pip install pyinstaller
-pyinstaller --windowed --name Popcornana main.py
+python -m PyInstaller --windowed --name Popcornana --add-data "assets:assets" main.py
 ```
 
 L'application générée se trouve dans `dist/Popcornana.app`.
