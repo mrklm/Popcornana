@@ -587,36 +587,51 @@ class StartupDialog(QDialog):
         self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
         self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
 
-        screen = QApplication.primaryScreen()
-        geometry = screen.availableGeometry() if screen else None
-        width = max(280, int(geometry.width() * 0.18)) if geometry else 320
-        height = max(260, int(geometry.height() * 0.24)) if geometry else 280
+        image_width = 286
+        image_height = 286
+        margin = 22
+        width = image_width + margin * 2
+        height = image_height + 172
         self.setFixedSize(width, height)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(12)
+        layout.setContentsMargins(margin, margin, margin, margin)
+        layout.setSpacing(10)
 
         image_label = QLabel()
         image_label.setAlignment(Qt.AlignCenter)
-        image_width = int(width * 0.55)
         if STARTUP_IMAGE_PATH.exists():
             image = QPixmap(str(STARTUP_IMAGE_PATH)).scaled(
                 image_width,
-                int(height * 0.55),
+                image_height,
                 Qt.KeepAspectRatio,
                 Qt.SmoothTransformation,
             )
             image_label.setPixmap(image)
             image_width = image.width()
-        layout.addWidget(image_label, stretch=1)
+        image_label.setFixedSize(image_width, image_height)
+        layout.addWidget(image_label, alignment=Qt.AlignHCenter)
 
         message_label = QLabel("actualisation de la bibliothèque")
         message_label.setAlignment(Qt.AlignCenter)
         message_label.setObjectName("startupMessage")
         message_label.setWordWrap(True)
-        message_label.setFixedWidth(image_width)
+        message_label.setFixedSize(image_width, 42)
         layout.addWidget(message_label, alignment=Qt.AlignHCenter)
+
+        wait_label = QLabel("Merci de patienter")
+        wait_label.setAlignment(Qt.AlignCenter)
+        wait_label.setObjectName("startupWait")
+        wait_label.setFixedWidth(image_width)
+        layout.addWidget(wait_label, alignment=Qt.AlignHCenter)
+
+        self.status_label = QLabel("scan en cours...")
+        self.status_label.setAlignment(Qt.AlignCenter)
+        self.status_label.setObjectName("startupStatus")
+        self.status_label.setWordWrap(True)
+        self.status_label.setFixedSize(image_width, 34)
+        layout.addWidget(self.status_label, alignment=Qt.AlignHCenter)
+        layout.addStretch()
 
         self.setStyleSheet(
             """
@@ -630,6 +645,16 @@ class StartupDialog(QDialog):
                 font-size: 16px;
                 font-weight: 700;
             }
+            QLabel#startupWait {
+                color: #EAEAEA;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            QLabel#startupStatus {
+                color: #FF9800;
+                font-size: 12px;
+                font-weight: 600;
+            }
             """
         )
 
@@ -639,6 +664,9 @@ class StartupDialog(QDialog):
             parent_geometry = parent.frameGeometry()
             self.move(parent_geometry.center() - self.rect().center())
         self.show()
+
+    def set_status(self, message: str) -> None:
+        self.status_label.setText(message)
 
 
 class ManualMatchDialog(QDialog):
@@ -856,8 +884,18 @@ def run() -> None:
     def finish_startup() -> None:
         startup.close()
 
+    def refresh_during_startup() -> None:
+        startup.set_status("scan en cours...")
+        QApplication.processEvents()
+        removed = window.repository.delete_missing_media()
+        window.refresh_library()
+        if removed:
+            startup.set_status(f"{len(window.items)} média(s), {removed} retiré(s)")
+        else:
+            startup.set_status(f"{len(window.items)} média(s) dans la bibliothèque")
+
     window.show()
     startup.show_centered_over_parent()
-    QTimer.singleShot(100, lambda: window.reload_library(show_status=False))
+    QTimer.singleShot(100, refresh_during_startup)
     QTimer.singleShot(5000, finish_startup)
     sys.exit(app.exec())
