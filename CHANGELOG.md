@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.1] - 2026-05-20
+
+- Ajustement de la fenêtre de démarrage en superposition de l'application.
+
 ## [1.0.0] - 2026-05-20
 
 ### État actuel

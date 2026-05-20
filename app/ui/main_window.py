@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QSize, QTimer, Qt
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -37,6 +37,7 @@ from app.version import APP_VERSION
 
 ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
 LOGO_PATH = ASSETS_DIR / "popcornana.png"
+STARTUP_IMAGE_PATH = ASSETS_DIR / "popcornana_ico.png"
 
 THEMES = {
     "[Sombre] Midnight Garage": dict(
@@ -121,7 +122,6 @@ class MainWindow(QMainWindow):
         self.resize(1180, 760)
         self._build_ui()
         self._load_saved_state()
-        self.refresh_library()
 
     def _build_ui(self) -> None:
         page = QWidget()
@@ -239,7 +239,7 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(scan_button)
 
         refresh_button = QPushButton("Rafraîchir")
-        refresh_button.clicked.connect(self.reload_library)
+        refresh_button.clicked.connect(lambda: self.reload_library())
         buttons_layout.addWidget(refresh_button)
 
         enrich_button = QPushButton("Enrichir auto")
@@ -388,9 +388,11 @@ class MainWindow(QMainWindow):
         self.refresh_library()
         self.statusBar().showMessage(f"{len(scanned)} vidéo(s) détectée(s).")
 
-    def reload_library(self) -> None:
+    def reload_library(self, show_status: bool = True) -> None:
         removed = self.repository.delete_missing_media()
         self.refresh_library()
+        if not show_status:
+            return
         if removed:
             self.statusBar().showMessage(f"Médiathèque rafraîchie, {removed} fichier(s) absent(s) retiré(s).")
         else:
@@ -575,6 +577,68 @@ class MainWindow(QMainWindow):
         pixmap = QPixmap(str(poster)).scaled(self.poster_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.poster_label.setText("")
         self.poster_label.setPixmap(pixmap)
+
+
+class StartupDialog(QDialog):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Popcornana")
+        self.setModal(True)
+        self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+
+        screen = QApplication.primaryScreen()
+        geometry = screen.availableGeometry() if screen else None
+        width = max(280, int(geometry.width() * 0.18)) if geometry else 320
+        height = max(260, int(geometry.height() * 0.24)) if geometry else 280
+        self.setFixedSize(width, height)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(12)
+
+        image_label = QLabel()
+        image_label.setAlignment(Qt.AlignCenter)
+        image_width = int(width * 0.55)
+        if STARTUP_IMAGE_PATH.exists():
+            image = QPixmap(str(STARTUP_IMAGE_PATH)).scaled(
+                image_width,
+                int(height * 0.55),
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation,
+            )
+            image_label.setPixmap(image)
+            image_width = image.width()
+        layout.addWidget(image_label, stretch=1)
+
+        message_label = QLabel("actualisation de la bibliothèque")
+        message_label.setAlignment(Qt.AlignCenter)
+        message_label.setObjectName("startupMessage")
+        message_label.setWordWrap(True)
+        message_label.setFixedWidth(image_width)
+        layout.addWidget(message_label, alignment=Qt.AlignHCenter)
+
+        self.setStyleSheet(
+            """
+            QDialog {
+                background: #151515;
+                color: #EAEAEA;
+                border: 1px solid #FF9800;
+            }
+            QLabel#startupMessage {
+                color: #EAEAEA;
+                font-size: 16px;
+                font-weight: 700;
+            }
+            """
+        )
+
+    def show_centered_over_parent(self) -> None:
+        parent = self.parentWidget()
+        if parent:
+            parent_geometry = parent.frameGeometry()
+            self.move(parent_geometry.center() - self.rect().center())
+        self.show()
 
 
 class ManualMatchDialog(QDialog):
@@ -787,5 +851,13 @@ def run() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName("Popcornana")
     window = MainWindow()
+    startup = StartupDialog(window)
+
+    def finish_startup() -> None:
+        startup.close()
+
     window.show()
+    startup.show_centered_over_parent()
+    QTimer.singleShot(100, lambda: window.reload_library(show_status=False))
+    QTimer.singleShot(5000, finish_startup)
     sys.exit(app.exec())
