@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.7] - 2026-05-20
+
+- Ajout de l'icône macOS `assets/popcornana.icns` pour les builds `.app`.
+
 ## [1.0.6] - 2026-05-20
 
 - Regroupement des épisodes dans des dossiers de séries.

@@ -16,6 +16,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 DIST_DIR = ROOT_DIR / "dist"
 BUILD_DIR = ROOT_DIR / "build"
 ICON_SOURCE = ROOT_DIR / "assets" / "popcornana_ico.png"
+MACOS_ICON_SOURCE = ROOT_DIR / "assets" / "popcornana.icns"
 ICON_DIR = BUILD_DIR / "icons"
 
 
@@ -54,6 +55,8 @@ def prepare_icon(target: str) -> Path:
         image = Image.open(ICON_SOURCE).convert("RGBA")
         image.save(icon_path, sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
         return icon_path
+    if target == "macos-intel" and MACOS_ICON_SOURCE.exists():
+        return MACOS_ICON_SOURCE
     if target == "macos-intel":
         icon_path = ICON_DIR / "popcornana.icns"
         image = Image.open(ICON_SOURCE).convert("RGBA")
