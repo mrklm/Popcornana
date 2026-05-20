@@ -86,6 +86,8 @@ def run_pyinstaller(target: str, icon_path: Path) -> None:
         add_data_arg(".env.example", "."),
         "main.py",
     ]
+    if target == "macos-catalina-intel":
+        command[command.index("main.py"):command.index("main.py")] = ["--collect-all", "PySide6"]
     if target in {"windows-x64", "linux-x64"}:
         command.insert(command.index("--windowed") + 1, "--onefile")
     if target in {"macos-intel", "macos-catalina-intel"}:

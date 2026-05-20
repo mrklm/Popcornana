@@ -21,9 +21,9 @@ python3.8 -m venv .venv-catalina
 source .venv-catalina/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-python -m pip install pyinstaller
+python -m pip install -r requirements-build-macos-catalina.txt
 python main.py
-python -m PyInstaller --windowed --name Popcornana --icon assets/popcornana.icns --add-data "assets:assets" main.py
+python -m PyInstaller --windowed --name Popcornana --icon assets/popcornana.icns --add-data "assets:assets" --collect-all PySide6 main.py
 ```
 
 Artefact attendu:
