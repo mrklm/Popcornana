@@ -276,12 +276,8 @@ class MainWindow(QMainWindow):
         choose_button.clicked.connect(self.choose_folder)
         buttons_layout.addWidget(choose_button)
 
-        scan_button = QPushButton("Scanner")
-        scan_button.clicked.connect(self.scan_current_folder)
-        buttons_layout.addWidget(scan_button)
-
-        refresh_button = QPushButton("Rafraîchir")
-        refresh_button.clicked.connect(lambda: self.reload_library())
+        refresh_button = QPushButton("Actualiser")
+        refresh_button.clicked.connect(self.refresh_current_folder)
         buttons_layout.addWidget(refresh_button)
 
         enrich_button = QPushButton("Enrichir auto")
@@ -466,29 +462,28 @@ class MainWindow(QMainWindow):
             return
         self.repository.set_setting("media_folder", folder)
         self.folder_label.setText(folder)
-        self.scan_current_folder()
+        self.refresh_current_folder()
 
-    def scan_current_folder(self) -> None:
+    def refresh_current_folder(self) -> None:
         folder = self.repository.get_setting("media_folder")
         if not folder:
-            QMessageBox.information(self, "Popcornana", "Choisis d'abord un dossier à scanner.")
+            QMessageBox.information(self, "Popcornana", "Choisis d'abord un dossier de médias.")
             return
 
+        before_paths = {str(item.filepath) for item in self.repository.list_media()}
         scanned = scan_videos(folder)
         for item in scanned:
             self.repository.upsert_media(item)
-        self.refresh_library()
-        self.show_media_count_status()
-
-    def reload_library(self, show_status: bool = True) -> None:
         removed = self.repository.delete_missing_media()
+        after_paths = {str(item.filepath) for item in self.repository.list_media()}
+        added = len(after_paths - before_paths)
         self.refresh_library()
-        if not show_status:
-            return
+
+        message = f"{len(self.items)} média(s), {added} ajouté(s)"
         if removed:
-            self.statusBar().showMessage(f"{len(self.items)} média(s) trouvé(s), {removed} fichier(s) absent(s) retiré(s).")
-        else:
-            self.show_media_count_status()
+            message += f", {removed} retiré(s)"
+        message += "."
+        self.statusBar().showMessage(message)
 
     def enrich_library_with_selected_sources(self) -> None:
         use_tmdb = self.tmdb_source_button.isChecked()
@@ -508,7 +503,11 @@ class MainWindow(QMainWindow):
             return
 
         updated = 0
+        skipped_locked = 0
         for item in self.repository.list_media():
+            if item.metadata_locked:
+                skipped_locked += 1
+                continue
             before = media_signature(item)
             try:
                 enriched = item
@@ -533,7 +532,10 @@ class MainWindow(QMainWindow):
             sources.append("TMDb")
         if available_omdb:
             sources.append("OMDb")
-        self.statusBar().showMessage(f"{updated} média(s) enrichi(s) avec {' + '.join(sources)}.")
+        message = f"{updated} média(s) enrichi(s) avec {' + '.join(sources)}."
+        if skipped_locked:
+            message += f" {skipped_locked} média(s) verrouillé(s) ignoré(s)."
+        self.statusBar().showMessage(message)
 
     def enrich_library(self) -> None:
         if not self.tmdb.is_configured:
@@ -542,6 +544,8 @@ class MainWindow(QMainWindow):
 
         updated = 0
         for item in self.repository.list_media():
+            if item.metadata_locked:
+                continue
             if item.tmdb_id:
                 continue
             try:
@@ -563,6 +567,8 @@ class MainWindow(QMainWindow):
 
         updated = 0
         for item in self.repository.list_media():
+            if item.metadata_locked:
+                continue
             try:
                 before = (item.title, item.year, item.overview, item.genres, item.vote_average, item.poster_path)
                 enriched = self.omdb.enrich_automatically(item)
@@ -599,6 +605,7 @@ class MainWindow(QMainWindow):
         dialog = MetadataMatchDialog("TMDb", self.current_item, results, self)
         if dialog.exec() == QDialog.Accepted and dialog.selected_result:
             item = apply_tmdb_result(self.current_item, dialog.selected_result)
+            item.metadata_locked = True
             if item.poster_path:
                 self.tmdb.download_poster(item.poster_path)
             self.repository.upsert_media(item)
@@ -627,6 +634,7 @@ class MainWindow(QMainWindow):
                 item.poster_path = str(poster.relative_to(POSTERS_DIR))
             else:
                 item.poster_path = previous_poster
+            item.metadata_locked = True
             self.repository.upsert_media(item)
             self.refresh_library()
 
@@ -640,6 +648,7 @@ class MainWindow(QMainWindow):
         item.title = dialog.title
         item.year = dialog.year
         item.overview = dialog.overview
+        item.metadata_locked = True
         if dialog.poster_path:
             saved_poster = save_manual_poster(dialog.poster_path)
             item.poster_path = str(saved_poster.relative_to(POSTERS_DIR))
@@ -692,6 +701,8 @@ class MainWindow(QMainWindow):
             meta.append(f"{item.vote_average:.1f}/10")
         if item.media_type == "tv" and item.season and item.episode:
             meta.append(f"S{item.season:02d}E{item.episode:02d}")
+        if item.metadata_locked:
+            meta.append("MANUEL")
         self.meta_label.setText(" | ".join(meta))
         self.overview_label.setText(item.overview or "Résumé non disponible.")
         self.path_label.setText(str(item.filepath))
