@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.7] - 2026-05-20
+
+- Commande de build Catalina complétée avec l'icône macOS `assets/popcornana.icns`.
+
 ## [1.0.6] - 2026-05-20
 
 - Compatibilité macOS Catalina: épinglage de `PySide6==6.2.4`.

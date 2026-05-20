@@ -23,7 +23,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m pip install pyinstaller
 python main.py
-python -m PyInstaller --windowed --name Popcornana --add-data "assets:assets" main.py
+python -m PyInstaller --windowed --name Popcornana --icon assets/popcornana.icns --add-data "assets:assets" main.py
 ```
 
 Artefact attendu:
