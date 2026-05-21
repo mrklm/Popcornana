@@ -1,8 +1,8 @@
 # Popcornana
 
-Version actuelle: **1.0.28**
+Version actuelle: **1.0.40**
 
-Popcornana est une application desktop locale pour organiser une médiathèque de films et séries. Elle scanne un dossier de vidéos, nettoie les noms de fichiers, affiche les médias dans une grille visuelle, récupère des métadonnées depuis OMDb et/ou TMDb, garde les affiches en cache local, puis lance la lecture avec VLC avc le sous titre quand il est disponible.
+Popcornana est une application desktop locale pour organiser une médiathèque de films et séries. Elle scanne un dossier de vidéos, nettoie les noms de fichiers, affiche les médias dans une grille visuelle, récupère des métadonnées depuis OMDb et/ou TMDb, garde les affiches en cache local, puis lance la lecture avec VLC en plein écran quand il est disponible, avec sous-titre détecté automatiquement.
 
 L'application est pensée pour rester simple et locale: les fichiers vidéo restent sur la machine, la base de données est un fichier SQLite local, et les affiches téléchargées sont stockées dans `data/posters/`.
 
@@ -15,27 +15,33 @@ L'application est pensée pour rester simple et locale: les fichiers vidéo rest
 - Nettoyage automatique des noms de fichiers: qualité, codec, source, langue, tags de release.
 - Affichage en grille avec affiche, titre et année.
 - Regroupement des épisodes dans des dossiers de séries pour garder la médiathèque lisible.
+- Regroupement des répertoires de films en dossiers navigables, avec visuel dédié possible.
+- Séparation visuelle des sections `Films` et `Séries`.
 - Panneau détail avec affiche, titre, note, résumé, chemin du fichier et bouton `Visionner`.
-- Résumé long contenu dans une zone scrollable.
+- Zoom fiche au clic sur le panneau détail, avec texte agrandi, résumé scrollable et bouton `Visionner`.
+- Résumés longs contenus dans des zones scrollables.
 - Enrichissement automatique via OMDb.
 - Recherches contextuelles TMDb/OMDb et édition manuelle des métadonnées depuis la grille.
+- Édition commune des métadonnées de série sans modifier les titres des épisodes.
 - Choix persistant des sources de métadonnées dans `Options avancées`.
 - Si OMDb et TMDb sont sélectionnés ensemble, TMDb est essayé en premier puis OMDb sert de secours.
 - Cache local des affiches dans `data/posters/`.
 - Actualisation unique de la médiathèque: ajout des nouveaux fichiers et retrait des fichiers disparus.
-- Sélecteur de thème persistant.
-- Lecture via VLC si disponible, sinon lecteur par défaut du système.
+- Sélecteur de thème et vitesse de défilement persistants.
+- Lecture via VLC en plein écran si disponible, sinon lecteur par défaut du système.
 - Détection automatique des sous-titres présents dans le même dossier que la vidéo.
 
 ## Interface
 
-L'interface est divisée en deux onglets.
+L'interface est divisée en trois onglets.
 
 **Général**
 
-Affiche la médiathèque sous forme de grille. Les séries apparaissent comme des dossiers ouvrables, puis leurs épisodes sont listés à l'intérieur. La sélection d'un média met à jour le panneau de droite avec les détails et le bouton `Visionner`.
+Affiche la médiathèque sous forme de grille, séparée en sections `Films` et `Séries`. Les séries apparaissent comme des dossiers ouvrables, puis leurs épisodes sont listés à l'intérieur. Les dossiers de films apparaissent comme des dossiers navigables sans modifier les fiches des films contenus.
 
-Un clic droit sur un film ou un épisode permet de lancer une recherche TMDb, une recherche OMDb ou une saisie manuelle du titre, de l'année, du résumé et de l'affiche.
+La sélection d'un média met à jour le panneau de droite avec les détails et le bouton `Visionner`. Un clic sur ce panneau ouvre le zoom fiche, plus lisible, avec résumé scrollable et bouton de lecture.
+
+Un clic droit sur un film ou un épisode permet de lancer une recherche TMDb, une recherche OMDb ou une saisie manuelle du titre, de l'année, du réalisateur, du résumé et de l'affiche. Un clic droit sur une série permet d'appliquer une affiche, une année, un réalisateur et un résumé général aux épisodes sans changer leurs titres. Un clic droit sur un dossier de films permet de l'ouvrir ou de choisir son visuel propre.
 
 **Options**
 
@@ -44,19 +50,29 @@ Regroupe les actions et réglages:
 - `Choisir dossier`: définit le dossier à scanner.
 - `Actualiser`: analyse le dossier choisi, ajoute les vidéos détectées et retire les entrées dont le fichier n'existe plus.
 - `Mettre à jour les fiches`: récupère les métadonnées avec les sources sélectionnées et affiche une fenêtre de progression.
-- `Options avancées`: permet de choisir OMDb, TMDb ou les deux.
-- `Thème`: change le thème visuel de l'application.
+- `Gérer les catégories`: force un dossier en Auto, Film unique, Dossier de films, Série, Dossier de séries ou Ignorer.
+- `Options avancées`: permet de choisir OMDb, TMDb ou les deux et d'enregistrer les clés API.
+- `Thème`: change le thème visuel de l'application et ajuste la vitesse de défilement.
+
+**Aide**
+
+Décrit le fonctionnement de Popcornana, donne les adresses pour obtenir les clés API TMDb/OMDb et résume les choix techniques dans une section `Pour les Geeks`.
 
 ## Métadonnées
 
-Les clés API sont configurées dans le fichier `.env`.
+Les clés API peuvent être enregistrées depuis `Options avancées`. Elles peuvent aussi être placées dans le fichier `.env`.
 
 ```env
 TMDB_API_KEY=xxxxxxxx
 OMDB_API_KEY=xxxxxxxx
 ```
 
-`OMDB_API_KEY` est actuellement la source la plus utile si TMDb ne permet pas encore de récupérer une clé. Les valeurs placeholder comme `xxxxxxxx` sont ignorées par l'application et ne sont pas considérées comme des clés valides.
+Les valeurs placeholder comme `xxxxxxxx` sont ignorées par l'application et ne sont pas considérées comme des clés valides.
+
+Adresses utiles:
+
+- TMDb: <https://www.themoviedb.org/settings/api>
+- OMDb: <https://www.omdbapi.com/apikey.aspx>
 
 ## Sous-titres
 
@@ -159,9 +175,9 @@ Le workflow est défini dans `.github/workflows/release.yml`. Il peut être lanc
 Exemple de release:
 
 ```bash
-git tag v1.0.13
+git tag v1.0.40 main
 git push origin main
-git push origin v1.0.13
+git push origin v1.0.40
 ```
 
 Sur un tag, GitHub Actions construit les trois artefacts et les ajoute à la release GitHub correspondante.
@@ -220,6 +236,6 @@ Voir [docs/MACOS_CATALINA.md](docs/MACOS_CATALINA.md) pour les détails et limit
 
 ## Version
 
-La version actuelle est `1.0.13`.
+La version actuelle est `1.0.40`.
 
 Voir [CHANGELOG.md](CHANGELOG.md) pour le détail de l'état de la release.
