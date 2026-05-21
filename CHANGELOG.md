@@ -4,6 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.29] - 2026-05-21
+
+- Ajustement de la fiche agrandie en fenêtre centrée plus compacte, avec texte plus grand et aligné à gauche.
+- Ajout du bouton `Visionner` dans la fiche agrandie et correction de l'affichage des titres longs.
+
 ## [1.0.28] - 2026-05-21
 
 - Déclenchement du mode fiche plein écran depuis le panneau détail plutôt que depuis la liste.
@@ -80,17 +85,21 @@ Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTI
 
 - Réorganisation du bloc `Options avancées` avec une ligne par source et un bouton d'enregistrement par clé API.
 
-## [1.0.10] - 2026-05-21
+## [1.0.11] - 2026-05-21
 
 - Protection des fiches modifiées manuellement contre l'enrichissement automatique.
 - Fusion des boutons `Scanner` et `Rafraîchir` en `Actualiser`.
 - Affichage d'une fenêtre de progression pendant la mise à jour des fiches.
 
-## [1.0.9] - 2026-05-20
+## [1.0.10] - 2026-05-20
 
 - Suppression du bouton `Recherche manuelle` dans l'onglet Options.
 - Ajout d'un menu clic droit sur les médias avec recherches TMDb/OMDb et édition manuelle.
 - Ajout d'une saisie manuelle du titre, de l'année, du résumé et de l'affiche.
+
+## [1.0.9] - 2026-05-20
+
+- Build Catalina: collecte complète de PySide6 pour embarquer les plugins Qt nécessaires aux images PNG.
 
 ## [1.0.8] - 2026-05-20
 
@@ -98,10 +107,15 @@ Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTI
 
 ## [1.0.7] - 2026-05-20
 
-- Ajout de l'icône macOS `assets/popcornana.icns` pour les builds `.app`.
+- Commande de build Catalina complétée avec l'icône macOS `assets/popcornana.icns`.
 
 ## [1.0.6] - 2026-05-20
 
+- Compatibilité macOS Catalina: épinglage de `PySide6==6.2.4`.
+- Compatibilité Python 3.8: remplacement des dataclasses avec `slots=True`.
+- Documentation Catalina mise à jour avec Python 3.8, PyInstaller et lancement via `dist/Popcornana.app`.
+- Commande de build Catalina corrigée pour inclure les images du dossier `assets`.
+- Lancement VLC corrigé sur macOS pour ouvrir le lecteur au premier plan.
 - Regroupement des épisodes dans des dossiers de séries.
 - Détection des structures de séries `Saison/Episode` et `Season/Episode`.
 
