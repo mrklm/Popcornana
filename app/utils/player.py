@@ -15,7 +15,7 @@ def open_media(path: str | Path) -> None:
     subtitle_path = find_subtitle(media_path)
     vlc_path = find_vlc()
     if vlc_path:
-        command = [vlc_path, str(media_path)]
+        command = [vlc_path, "--fullscreen", str(media_path)]
         if subtitle_path:
             command.extend(["--sub-file", str(subtitle_path)])
         subprocess.Popen(command)
