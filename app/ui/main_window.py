@@ -177,7 +177,7 @@ class MainWindow(QMainWindow):
         self.grid.setResizeMode(QListWidget.Adjust)
         self.grid.setMovement(QListWidget.Static)
         self.grid.setSpacing(14)
-        self.grid.setUniformItemSizes(True)
+        self.grid.setUniformItemSizes(False)
         self.grid.setVerticalScrollMode(scroll_per_pixel_mode())
         self.grid.currentRowChanged.connect(self.select_item)
         self.grid.itemActivated.connect(self.activate_item)
@@ -878,11 +878,12 @@ class MainWindow(QMainWindow):
                 list_item = QListWidgetItem(entry.title)
                 list_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
                 header_font = QFont()
-                header_font.setPointSize(16)
+                header_font.setPointSize(44)
                 header_font.setBold(True)
                 list_item.setFont(header_font)
-                list_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
-                list_item.setSizeHint(QSize(180, 44))
+                list_item.setFlags(Qt.NoItemFlags)
+                header_width = max(560, self.grid.viewport().width() - 32)
+                list_item.setSizeHint(QSize(header_width, 104))
                 list_item.setData(Qt.UserRole, None)
             else:
                 list_item = QListWidgetItem(self._icon_for_entry(entry), self._label_for_entry(entry))
@@ -1971,6 +1972,12 @@ def build_stylesheet(theme: dict[str, str]) -> str:
             border: 1px solid transparent;
             border-radius: 8px;
             padding: 8px;
+        }}
+        QListWidget#libraryGrid::item:disabled {{
+            background: transparent;
+            color: {theme["FG"]};
+            border: none;
+            padding: 0;
         }}
         QListWidget#libraryGrid::item:selected {{
             background: {theme["ACCENT"]};
