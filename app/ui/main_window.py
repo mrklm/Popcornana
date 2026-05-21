@@ -1444,6 +1444,7 @@ class FullscreenEntryDialog(QDialog):
         layout.addLayout(button_row)
 
         self.apply_theme()
+        self._apply_reading_fonts(title_label, meta_label, overview_label, return_button, watch_button)
         self._fit_wrapped_label(title_label, text_width)
         self._fit_wrapped_label(meta_label, text_width)
 
@@ -1472,6 +1473,34 @@ class FullscreenEntryDialog(QDialog):
             label.text(),
         )
         label.setMinimumHeight(bounds.height() + 10)
+
+    def _apply_reading_fonts(
+        self,
+        title_label: QLabel,
+        meta_label: QLabel,
+        overview_label: QLabel,
+        return_button: QPushButton,
+        watch_button: QPushButton,
+    ) -> None:
+        title_font = QFont()
+        title_font.setPointSize(30)
+        title_font.setBold(True)
+        title_label.setFont(title_font)
+
+        meta_font = QFont()
+        meta_font.setPointSize(20)
+        meta_font.setBold(True)
+        meta_label.setFont(meta_font)
+
+        overview_font = QFont()
+        overview_font.setPointSize(22)
+        overview_label.setFont(overview_font)
+
+        button_font = QFont()
+        button_font.setPointSize(16)
+        button_font.setBold(True)
+        return_button.setFont(button_font)
+        watch_button.setFont(button_font)
 
     def apply_theme(self) -> None:
         self.setStyleSheet(
