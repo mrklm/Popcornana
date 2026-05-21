@@ -5,7 +5,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPoint, QSize, QTimer, Qt
+from PySide6.QtCore import QEvent, QPoint, QRect, QSize, QTimer, Qt
 from PySide6.QtGui import QAction, QFont, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -939,7 +939,6 @@ class MainWindow(QMainWindow):
             return
         theme_name = self.repository.get_setting("theme") or DEFAULT_THEME
         dialog = FullscreenEntryDialog(self.current_entry, THEMES.get(theme_name, THEMES[DEFAULT_THEME]), self)
-        dialog.showFullScreen()
         dialog.exec()
 
     def play_current(self) -> None:
@@ -1238,8 +1237,14 @@ class FullscreenEntryDialog(QDialog):
         self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
 
         screen = QApplication.primaryScreen()
-        screen_width = screen.availableGeometry().width() if screen else 1280
-        text_width = max(520, screen_width // 2)
+        screen_geometry = screen.availableGeometry() if screen else None
+        screen_width = screen_geometry.width() if screen_geometry else 1280
+        screen_height = screen_geometry.height() if screen_geometry else 800
+        window_width = max(640, int(screen_width * 0.5))
+        window_height = max(560, int(screen_height * 0.8))
+        text_width = max(520, window_width - 96)
+        self.resize(window_width, window_height)
+        self._center_on_screen()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(48, 34, 48, 34)
@@ -1260,29 +1265,65 @@ class FullscreenEntryDialog(QDialog):
         title_label = QLabel(entry.title)
         title_label.setObjectName("fullscreenTitle")
         title_label.setWordWrap(True)
-        title_label.setAlignment(Qt.AlignCenter)
-        title_label.setMaximumWidth(text_width)
+        title_label.setAlignment(Qt.AlignLeft)
+        title_label.setFixedWidth(text_width)
         layout.addWidget(title_label, alignment=Qt.AlignHCenter)
 
         meta_label = QLabel(fullscreen_meta_text(entry))
         meta_label.setObjectName("fullscreenMeta")
         meta_label.setWordWrap(True)
-        meta_label.setAlignment(Qt.AlignCenter)
-        meta_label.setMaximumWidth(text_width)
+        meta_label.setAlignment(Qt.AlignLeft)
+        meta_label.setFixedWidth(text_width)
         layout.addWidget(meta_label, alignment=Qt.AlignHCenter)
 
         overview_label = QLabel(fullscreen_overview_text(entry))
         overview_label.setObjectName("fullscreenOverview")
         overview_label.setWordWrap(True)
-        overview_label.setAlignment(Qt.AlignCenter)
-        overview_label.setMaximumWidth(text_width)
+        overview_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        overview_label.setFixedWidth(text_width)
         layout.addWidget(overview_label, stretch=1, alignment=Qt.AlignHCenter | Qt.AlignTop)
 
+        button_row = QHBoxLayout()
+        button_row.setContentsMargins(0, 0, 0, 0)
         return_button = QPushButton("Retour à la liste")
         return_button.clicked.connect(self.accept)
-        layout.addWidget(return_button, alignment=Qt.AlignHCenter)
+        watch_button = QPushButton("Visionner")
+        watch_button.setEnabled(bool(entry.items))
+        watch_button.clicked.connect(self.watch_entry)
+        button_row.addWidget(return_button, alignment=Qt.AlignLeft)
+        button_row.addStretch(1)
+        button_row.addWidget(watch_button, alignment=Qt.AlignRight)
+        layout.addLayout(button_row)
 
         self.apply_theme()
+        self._fit_wrapped_label(title_label, text_width)
+        self._fit_wrapped_label(meta_label, text_width)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._center_on_screen()
+        QTimer.singleShot(0, self._center_on_screen)
+
+    def _center_on_screen(self) -> None:
+        screen = self.screen() or QApplication.primaryScreen()
+        if not screen:
+            return
+        frame = self.frameGeometry()
+        frame.moveCenter(screen.availableGeometry().center())
+        self.move(frame.topLeft())
+
+    def watch_entry(self) -> None:
+        if not self.entry.items:
+            return
+        open_media(self.entry.items[0].filepath)
+
+    def _fit_wrapped_label(self, label: QLabel, width: int) -> None:
+        bounds = label.fontMetrics().boundingRect(
+            QRect(0, 0, width, 2000),
+            Qt.TextWordWrap | Qt.AlignLeft,
+            label.text(),
+        )
+        label.setMinimumHeight(bounds.height() + 10)
 
     def apply_theme(self) -> None:
         self.setStyleSheet(
@@ -1298,17 +1339,17 @@ class FullscreenEntryDialog(QDialog):
             }}
             QLabel#fullscreenTitle {{
                 color: {self.theme["FG"]};
-                font-size: 28px;
+                font-size: 31px;
                 font-weight: 800;
             }}
             QLabel#fullscreenMeta {{
                 color: {self.theme["ACCENT"]};
-                font-size: 16px;
+                font-size: 19px;
                 font-weight: 700;
             }}
             QLabel#fullscreenOverview {{
                 color: {self.theme["FG"]};
-                font-size: 18px;
+                font-size: 21px;
                 line-height: 130%;
             }}
             QPushButton {{

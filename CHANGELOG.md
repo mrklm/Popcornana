@@ -4,6 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.29] - 2026-05-21
+
+- Ajustement de la fiche agrandie en fenêtre centrée plus compacte, avec texte plus grand et aligné à gauche.
+- Ajout du bouton `Visionner` dans la fiche agrandie et correction de l'affichage des titres longs.
+
 ## [1.0.28] - 2026-05-21
 
 - Déclenchement du mode fiche plein écran depuis le panneau détail plutôt que depuis la liste.
