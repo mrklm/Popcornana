@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.30] - 2026-05-21
+
+- Affichage des sections `Films` et `Séries` comme grands séparateurs pleine largeur dans la médiathèque.
+
 ## [1.0.29] - 2026-05-21
 
 - Ajustement de la fiche agrandie en fenêtre centrée plus compacte, avec texte plus grand et aligné à gauche.
