@@ -21,6 +21,8 @@ class MediaItem:
     season: int | None = None
     episode: int | None = None
     metadata_locked: bool = False
+    category_forced: bool = False
+    category_override: str | None = None
 
     @property
     def display_year(self) -> str:

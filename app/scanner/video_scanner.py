@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.models.media import MediaItem
-from app.scanner.name_cleaner import clean_title, is_video_file, parse_media_filename
+from app.scanner.name_cleaner import clean_title, is_video_file, parent_series_title, parse_media_filename
 
 
 def scan_videos(folder: str | Path, category_overrides: dict[str, str] | None = None) -> list[MediaItem]:
@@ -33,9 +33,9 @@ def scan_videos(folder: str | Path, category_overrides: dict[str, str] | None = 
             media_type = "movie"
             season = None
             episode = None
-        elif category == "tv":
+        elif category in {"tv", "series_folder"}:
             media_type = "tv"
-            title = clean_title(category_folder.name) if category_folder else title
+            title = forced_series_title(path, category_folder) if category_folder else title
         items.append(
             MediaItem(
                 filepath=path,
@@ -44,6 +44,8 @@ def scan_videos(folder: str | Path, category_overrides: dict[str, str] | None = 
                 year=parsed["year"] if isinstance(parsed["year"], int) else None,
                 season=season,
                 episode=episode,
+                category_forced=category != "auto",
+                category_override=category if category != "auto" else None,
             )
         )
     return items
@@ -63,3 +65,9 @@ def category_for_path(root: Path, path: Path, category_overrides: dict[str, str]
             category_folder = root if key == "." else root / candidate
             return category, category_folder
     return "auto", None
+
+
+def forced_series_title(path: Path, category_folder: Path) -> str:
+    if path.parent == category_folder:
+        return parent_series_title(path)
+    return clean_title(category_folder.name)
