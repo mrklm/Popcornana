@@ -1379,7 +1379,7 @@ class FullscreenEntryDialog(QDialog):
         screen_geometry = screen.availableGeometry() if screen else None
         screen_width = screen_geometry.width() if screen_geometry else 1280
         screen_height = screen_geometry.height() if screen_geometry else 800
-        window_width = max(640, int(screen_width * 0.5))
+        window_width = max(736, int(screen_width * 0.575))
         window_height = max(560, int(screen_height * 0.8))
         text_width = max(520, window_width - 96)
         self.resize(window_width, window_height)
@@ -1487,17 +1487,17 @@ class FullscreenEntryDialog(QDialog):
             }}
             QLabel#fullscreenTitle {{
                 color: {self.theme["FG"]};
-                font-size: 31px;
+                font-size: 35px;
                 font-weight: 800;
             }}
             QLabel#fullscreenMeta {{
                 color: {self.theme["ACCENT"]};
-                font-size: 19px;
+                font-size: 22px;
                 font-weight: 700;
             }}
             QLabel#fullscreenOverview {{
                 color: {self.theme["FG"]};
-                font-size: 21px;
+                font-size: 25px;
                 line-height: 130%;
             }}
             QScrollArea#fullscreenOverviewScroll {{
@@ -1509,8 +1509,9 @@ class FullscreenEntryDialog(QDialog):
                 color: {self.theme["FIELD_FG"]};
                 border: 1px solid {self.theme["ACCENT"]};
                 border-radius: 6px;
-                padding: 10px 18px;
-                min-height: 28px;
+                padding: 12px 22px;
+                min-height: 34px;
+                font-size: 18px;
                 font-weight: 700;
             }}
             QPushButton:hover {{
