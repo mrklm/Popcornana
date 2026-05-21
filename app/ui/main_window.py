@@ -777,67 +777,56 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"{updated} média(s) enrichi(s) avec OMDb.")
 
     def search_tmdb_current(self) -> None:
-        target_item = self._metadata_target_item()
-        if not target_item:
+        if not self.current_item:
             return
         if not self.tmdb.is_configured:
             QMessageBox.warning(self, "TMDb", "Ajoute TMDB_API_KEY dans un fichier .env pour lancer la recherche.")
             return
         try:
-            results = self.tmdb.search(target_item)
+            results = self.tmdb.search(self.current_item)
         except Exception as exc:
             QMessageBox.critical(self, "TMDb", f"Recherche impossible: {exc}")
             return
         if not results:
             QMessageBox.information(self, "TMDb", "Aucun résultat trouvé.")
             return
-        dialog = MetadataMatchDialog("TMDb", target_item, results, self)
+        dialog = MetadataMatchDialog("TMDb", self.current_item, results, self)
         if dialog.exec() == QDialog.Accepted and dialog.selected_result:
-            item = apply_tmdb_result(target_item, self.tmdb.with_director(dialog.selected_result))
+            item = apply_tmdb_result(self.current_item, self.tmdb.with_director(dialog.selected_result))
             item.metadata_locked = True
             if item.poster_path:
                 self.tmdb.download_poster(item.poster_path)
-            if self.current_entry and self.current_entry.kind == "movie_folder":
-                self._apply_common_metadata_to_entry(self.current_entry, item)
-            else:
-                self.repository.upsert_media(item)
+            self.repository.upsert_media(item)
             self.refresh_library()
 
     def search_omdb_current(self) -> None:
-        target_item = self._metadata_target_item()
-        if not target_item:
+        if not self.current_item:
             return
         if not self.omdb.is_configured:
             QMessageBox.warning(self, "OMDb", "Ajoute OMDB_API_KEY dans un fichier .env pour lancer la recherche.")
             return
         try:
-            results = self.omdb.search(target_item)
+            results = self.omdb.search(self.current_item)
         except Exception as exc:
             QMessageBox.critical(self, "OMDb", f"Recherche impossible: {exc}")
             return
         if not results:
             QMessageBox.information(self, "OMDb", "Aucun résultat trouvé.")
             return
-        dialog = MetadataMatchDialog("OMDb", target_item, results, self)
+        dialog = MetadataMatchDialog("OMDb", self.current_item, results, self)
         if dialog.exec() == QDialog.Accepted and dialog.selected_result:
-            previous_poster = target_item.poster_path
-            item = apply_omdb_result(target_item, dialog.selected_result)
+            previous_poster = self.current_item.poster_path
+            item = apply_omdb_result(self.current_item, dialog.selected_result)
             poster = self.omdb.download_poster(dialog.selected_result)
             if poster:
                 item.poster_path = str(poster.relative_to(POSTERS_DIR))
             else:
                 item.poster_path = previous_poster
             item.metadata_locked = True
-            if self.current_entry and self.current_entry.kind == "movie_folder":
-                self._apply_common_metadata_to_entry(self.current_entry, item)
-            else:
-                self.repository.upsert_media(item)
+            self.repository.upsert_media(item)
             self.refresh_library()
 
     def edit_metadata_current(self) -> None:
-        if self.current_entry and self.current_entry.kind == "movie_folder":
-            self.edit_movie_folder_current()
-            return
         if not self.current_item:
             return
         dialog = ManualMetadataDialog(self.current_item, self)
@@ -854,36 +843,6 @@ class MainWindow(QMainWindow):
             item.poster_path = str(saved_poster.relative_to(POSTERS_DIR))
         self.repository.upsert_media(item)
         self.refresh_library()
-
-    def edit_movie_folder_current(self) -> None:
-        if not self.current_entry or self.current_entry.kind != "movie_folder":
-            return
-        dialog = SeriesMetadataDialog(
-            self.current_entry,
-            self,
-            title="Modifier le dossier de films",
-            label="Dossier",
-            count_label="film(s) concerné(s)",
-        )
-        if dialog.exec() != QDialog.Accepted:
-            return
-
-        poster_path = None
-        if dialog.poster_path:
-            saved_poster = save_manual_poster(dialog.poster_path)
-            poster_path = str(saved_poster.relative_to(POSTERS_DIR))
-
-        updated_count = len(self.current_entry.items)
-        for item in self.current_entry.items:
-            item.year = dialog.year
-            item.director = dialog.director
-            item.overview = dialog.overview
-            if poster_path:
-                item.poster_path = poster_path
-            item.metadata_locked = True
-            self.repository.upsert_media(item)
-        self.refresh_library()
-        self.statusBar().showMessage(f"{updated_count} film(s) du dossier mis à jour.")
 
     def edit_series_current(self) -> None:
         if not self.current_entry or self.current_entry.kind != "series":
@@ -909,39 +868,6 @@ class MainWindow(QMainWindow):
         self.refresh_library()
         self.statusBar().showMessage(f"{updated_count} épisode(s) de la série mis à jour.")
 
-    def _metadata_target_item(self) -> MediaItem | None:
-        if self.current_entry and self.current_entry.kind == "movie_folder":
-            reference_item = self.current_entry.items[0]
-            return MediaItem(
-                filepath=Path(self.current_entry.folder_path or reference_item.filepath),
-                media_type="movie",
-                title=self.current_entry.title,
-                year=reference_item.year,
-                original_title=reference_item.original_title,
-                overview=reference_item.overview,
-                genres=reference_item.genres,
-                director=reference_item.director,
-                vote_average=reference_item.vote_average,
-                poster_path=reference_item.poster_path,
-                backdrop_path=reference_item.backdrop_path,
-                tmdb_id=reference_item.tmdb_id,
-                metadata_locked=reference_item.metadata_locked,
-            )
-        return self.current_item
-
-    def _apply_common_metadata_to_entry(self, entry: LibraryEntry, source: MediaItem) -> None:
-        for item in entry.items:
-            item.year = source.year
-            item.original_title = source.original_title
-            item.overview = source.overview
-            item.genres = source.genres
-            item.director = source.director
-            item.vote_average = source.vote_average
-            item.poster_path = source.poster_path
-            item.backdrop_path = source.backdrop_path
-            item.tmdb_id = source.tmdb_id
-            item.metadata_locked = True
-            self.repository.upsert_media(item)
 
     def refresh_library(self) -> None:
         self.items = self.repository.list_media()
@@ -1061,6 +987,13 @@ class MainWindow(QMainWindow):
         entry = self.entries[row]
         if entry.kind == "header":
             return
+        if entry.kind == "movie_folder":
+            menu = QMenu(self)
+            open_folder_action = QAction("Ouvrir le dossier de films", self)
+            open_folder_action.triggered.connect(lambda: self.open_movie_folder(entry))
+            menu.addAction(open_folder_action)
+            menu.exec(self.grid.mapToGlobal(position))
+            return
         if entry.kind == "series":
             menu = QMenu(self)
             edit_series_action = QAction("Modifier la série", self)
@@ -1136,9 +1069,12 @@ class MainWindow(QMainWindow):
     def _show_movie_folder_details(self, entry: LibraryEntry) -> None:
         self.current_item = None
         reference_item = entry.items[0]
+        movie_titles = "\n".join(f"- {item.title}" for item in entry.items[:20])
+        if len(entry.items) > 20:
+            movie_titles += f"\n- ... {len(entry.items) - 20} autre(s) film(s)"
         self.title_label.setText(entry.title)
         self.meta_label.setText(f"Dossier de films | {len(entry.items)} film(s)")
-        self.overview_label.setText("Ouvre ce dossier pour afficher les films qu'il contient.")
+        self.overview_label.setText(movie_titles or "Aucun film dans ce dossier.")
         self.path_label.setText(entry.folder_path or "")
         self.play_button.setText("Ouvrir le dossier")
         self.play_button.setEnabled(True)
