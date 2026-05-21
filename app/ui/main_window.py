@@ -933,7 +933,7 @@ class MainWindow(QMainWindow):
         self.play_button.setText("Visionner")
         self.play_button.setEnabled(True)
         self.title_label.setText(item.title)
-        meta = [item.media_type.upper()]
+        meta = [media_type_label(item.media_type)]
         if item.year:
             meta.append(str(item.year))
         if item.vote_average:
@@ -1858,7 +1858,7 @@ def fullscreen_meta_text(entry: LibraryEntry) -> str:
         return " | ".join(meta)
 
     item = entry.items[0]
-    meta = [item.media_type.upper()]
+    meta = [media_type_label(item.media_type)]
     if item.year:
         meta.append(str(item.year))
     if item.vote_average:
@@ -1874,6 +1874,14 @@ def fullscreen_overview_text(entry: LibraryEntry) -> str:
     if not entry.items:
         return "Résumé non disponible."
     return entry.items[0].overview or "Résumé non disponible."
+
+
+def media_type_label(media_type: str) -> str:
+    if media_type == "movie":
+        return "Film"
+    if media_type == "tv":
+        return "Série"
+    return media_type.capitalize()
 
 
 def build_help_html() -> str:
