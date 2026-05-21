@@ -970,7 +970,9 @@ class StartupDialog(QDialog):
         parent = self.parentWidget()
         if parent:
             parent_geometry = parent.frameGeometry()
-            self.move(parent_geometry.center() - self.rect().center())
+            position = parent_geometry.center() - self.rect().center()
+            position.setY(max(parent_geometry.top() + 24, position.y() - 90))
+            self.move(position)
         self.show()
 
     def set_status(self, message: str) -> None:
