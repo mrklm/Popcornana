@@ -25,7 +25,9 @@ jobs:
             artifact_pattern: dist/Popcornana-windows-x64.zip
           - target: linux-x64
             os: ubuntu-latest
-            artifact_pattern: dist/Popcornana-linux-x64.tar.gz
+            artifact_pattern: |
+              dist/Popcornana-linux-x64.tar.gz
+              dist/Popcornana-linux-x64.AppImage
 
     steps:
       - name: Checkout
@@ -40,7 +42,14 @@ jobs:
         if: matrix.target == 'linux-x64'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0
+          sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 wget
+
+      - name: Install AppImage tooling
+        if: matrix.target == 'linux-x64'
+        run: |
+          wget -O appimagetool "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x appimagetool
+          sudo mv appimagetool /usr/local/bin/appimagetool
 
       - name: Install dependencies
         run: |
@@ -75,3 +84,4 @@ jobs:
             release-assets/Popcornana-macos-intel/Popcornana-macos-intel.zip
             release-assets/Popcornana-windows-x64/Popcornana-windows-x64.zip
             release-assets/Popcornana-linux-x64/Popcornana-linux-x64.tar.gz
+            release-assets/Popcornana-linux-x64/Popcornana-linux-x64.AppImage

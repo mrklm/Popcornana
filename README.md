@@ -193,7 +193,8 @@ Artefacts produits:
 
 - `Popcornana-macos-intel.zip`: application `.app` macOS Intel ;
 - `Popcornana-windows-x64.zip`: exécutable Windows x64 ;
-- `Popcornana-linux-x64.tar.gz`: exécutable Linux x64.
+- `Popcornana-linux-x64.tar.gz`: exécutable Linux x64 ;
+- `Popcornana-linux-x64.AppImage`: application Linux x64 portable.
 
 Le workflow est défini dans `.github/workflows/release.yml`. Il peut être lancé manuellement depuis l'onglet Actions de GitHub, ou automatiquement en poussant un tag `v*`.
 
@@ -235,6 +236,8 @@ Linux:
 ```bash
 python scripts/build_release.py --target linux-x64
 ```
+
+La cible Linux nécessite `appimagetool` dans le `PATH` pour générer l'artefact `.AppImage`.
 
 ## Build macOS Catalina legacy
 
