@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSlider,
     QStatusBar,
     QTabWidget,
     QTableWidget,
@@ -58,6 +59,9 @@ CATEGORY_LABELS = {
     "ignore": "Ignorer",
 }
 CATEGORY_VALUES = {label: value for value, label in CATEGORY_LABELS.items()}
+SCROLL_SPEED_MIN = 1
+SCROLL_SPEED_MAX = 10
+SCROLL_SPEED_DEFAULT = 3
 
 THEMES = {
     "[Sombre] Midnight Garage": dict(
@@ -173,6 +177,7 @@ class MainWindow(QMainWindow):
         self.grid.setMovement(QListWidget.Static)
         self.grid.setSpacing(14)
         self.grid.setUniformItemSizes(True)
+        self.grid.setVerticalScrollMode(scroll_per_pixel_mode())
         self.grid.currentRowChanged.connect(self.select_item)
         self.grid.itemActivated.connect(self.activate_item)
         self.grid.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -406,6 +411,24 @@ class MainWindow(QMainWindow):
         self.theme_combo.currentTextChanged.connect(self.change_theme)
         theme_layout.addWidget(self.theme_combo)
         theme_layout.addStretch()
+
+        scroll_label = QLabel("Défilement")
+        scroll_label.setObjectName("sectionTitle")
+        theme_layout.addWidget(scroll_label)
+
+        self.scroll_speed_slider = QSlider(Qt.Horizontal)
+        self.scroll_speed_slider.setMinimum(SCROLL_SPEED_MIN)
+        self.scroll_speed_slider.setMaximum(SCROLL_SPEED_MAX)
+        self.scroll_speed_slider.setSingleStep(1)
+        self.scroll_speed_slider.setPageStep(1)
+        self.scroll_speed_slider.setFixedWidth(180)
+        self.scroll_speed_slider.valueChanged.connect(self.change_scroll_speed)
+        theme_layout.addWidget(self.scroll_speed_slider)
+
+        self.scroll_speed_value_label = QLabel("")
+        self.scroll_speed_value_label.setObjectName("fieldLabel")
+        self.scroll_speed_value_label.setMinimumWidth(44)
+        theme_layout.addWidget(self.scroll_speed_value_label)
         options_layout.addWidget(theme_section)
         options_layout.addStretch()
         self.tabs.addTab(options_tab, "Options")
@@ -449,6 +472,7 @@ class MainWindow(QMainWindow):
         self.theme_combo.setCurrentText(theme_name)
         self.theme_combo.blockSignals(False)
         self.apply_theme(theme_name)
+        self.load_scroll_speed()
 
     def _load_logo(self) -> None:
         self._load_logo_into(self.logo_label)
@@ -464,6 +488,29 @@ class MainWindow(QMainWindow):
             return
         self.repository.set_setting("theme", theme_name)
         self.apply_theme(theme_name)
+
+    def load_scroll_speed(self) -> None:
+        speed_text = self.repository.get_setting("scroll_speed")
+        try:
+            speed = int(speed_text) if speed_text else SCROLL_SPEED_DEFAULT
+        except ValueError:
+            speed = SCROLL_SPEED_DEFAULT
+        speed = max(SCROLL_SPEED_MIN, min(SCROLL_SPEED_MAX, speed))
+
+        self.scroll_speed_slider.blockSignals(True)
+        self.scroll_speed_slider.setValue(speed)
+        self.scroll_speed_slider.blockSignals(False)
+        self.apply_scroll_speed(speed)
+
+    def change_scroll_speed(self, speed: int) -> None:
+        self.repository.set_setting("scroll_speed", str(speed))
+        self.apply_scroll_speed(speed)
+
+    def apply_scroll_speed(self, speed: int) -> None:
+        scroll_step = max(4, speed * 4)
+        self.grid.verticalScrollBar().setSingleStep(scroll_step)
+        self.grid.verticalScrollBar().setPageStep(scroll_step * 12)
+        self.scroll_speed_value_label.setText(f"{speed}/10")
 
     def load_source_preferences(self) -> None:
         tmdb_enabled = self.repository.get_setting("metadata_source_tmdb") == "1"
@@ -1501,6 +1548,11 @@ def build_help_html() -> str:
 
 def series_key(title: str) -> str:
     return " ".join(title.casefold().split())
+
+
+def scroll_per_pixel_mode():
+    scroll_mode = getattr(QAbstractItemView, "ScrollMode", QAbstractItemView)
+    return getattr(scroll_mode, "ScrollPerPixel")
 
 
 def episode_sort_key(item: MediaItem) -> tuple:
