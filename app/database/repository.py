@@ -40,6 +40,7 @@ class MediaRepository:
                     year INTEGER,
                     overview TEXT,
                     genres TEXT,
+                    director TEXT,
                     vote_average REAL,
                     poster_path TEXT,
                     backdrop_path TEXT,
@@ -57,6 +58,8 @@ class MediaRepository:
             }
             if "metadata_locked" not in columns:
                 connection.execute("ALTER TABLE media ADD COLUMN metadata_locked INTEGER DEFAULT 0")
+            if "director" not in columns:
+                connection.execute("ALTER TABLE media ADD COLUMN director TEXT")
 
     def get_setting(self, key: str) -> str | None:
         with self._connect() as connection:
@@ -79,11 +82,11 @@ class MediaRepository:
             connection.execute(
                 """
                 INSERT INTO media (
-                    filepath, media_type, title, original_title, year, overview, genres,
+                    filepath, media_type, title, original_title, year, overview, genres, director,
                     vote_average, poster_path, backdrop_path, tmdb_id, season, episode,
                     metadata_locked, added_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(filepath) DO UPDATE SET
                     media_type = CASE
                         WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.media_type
@@ -108,6 +111,10 @@ class MediaRepository:
                     genres = CASE
                         WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.genres
                         ELSE COALESCE(excluded.genres, media.genres)
+                    END,
+                    director = CASE
+                        WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.director
+                        ELSE COALESCE(excluded.director, media.director)
                     END,
                     vote_average = CASE
                         WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.vote_average
@@ -146,6 +153,7 @@ class MediaRepository:
                     item.year,
                     item.overview,
                     item.genres,
+                    item.director,
                     item.vote_average,
                     item.poster_path,
                     item.backdrop_path,
@@ -187,6 +195,7 @@ class MediaRepository:
             year=row["year"],
             overview=row["overview"],
             genres=row["genres"],
+            director=row["director"],
             vote_average=row["vote_average"],
             poster_path=row["poster_path"],
             backdrop_path=row["backdrop_path"],

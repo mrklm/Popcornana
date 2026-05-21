@@ -25,6 +25,7 @@ class OmdbResult:
     year: int | None
     overview: str | None
     genres: str | None
+    director: str | None
     poster_url: str | None
     vote_average: float | None
     score: float
@@ -134,6 +135,7 @@ class OmdbClient:
             year=year,
             overview=_none_if_na(payload.get("Plot")),
             genres=_none_if_na(payload.get("Genre")),
+            director=_none_if_na(payload.get("Director")),
             poster_url=poster_url,
             vote_average=imdb_rating,
             score=0,
@@ -152,6 +154,7 @@ def apply_omdb_result(item: MediaItem, result: OmdbResult) -> MediaItem:
     item.year = result.year or item.year
     item.overview = result.overview or item.overview
     item.genres = result.genres or item.genres
+    item.director = result.director or item.director
     item.vote_average = result.vote_average or item.vote_average
     if result.poster_url:
         item.poster_path = result.poster_url
