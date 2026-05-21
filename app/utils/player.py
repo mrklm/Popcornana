@@ -17,13 +17,15 @@ def open_media(path: str | Path) -> None:
     if sys.platform == "darwin" and find_vlc_app():
         command = ["open", "-a", "VLC", str(media_path)]
         if subtitle_path:
-            command.extend(["--args", "--sub-file", str(subtitle_path)])
+            command.extend(["--args", "--fullscreen", "--sub-file", str(subtitle_path)])
+        else:
+            command.extend(["--args", "--fullscreen"])
         subprocess.Popen(command)
         return
 
     vlc_path = find_vlc()
     if vlc_path:
-        command = [vlc_path, str(media_path)]
+        command = [vlc_path, "--fullscreen", str(media_path)]
         if subtitle_path:
             command.extend(["--sub-file", str(subtitle_path)])
         subprocess.Popen(command)

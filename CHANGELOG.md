@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.35] - 2026-05-21
+
+- Rétablissement du lancement VLC en plein écran pour le visionnage des vidéos.
+
 ## [1.0.34] - 2026-05-21
 
 - Ajout d'un visuel dédié pour les dossiers de films sans modifier les fiches des films contenus.
