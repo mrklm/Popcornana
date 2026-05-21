@@ -621,15 +621,16 @@ class MainWindow(QMainWindow):
             self,
             message="mise à jour des fiches",
             status="préparation...",
+            cancellable=True,
         )
         progress.show_centered_over_parent()
         QApplication.processEvents()
         try:
-            self.enrich_library_with_selected_sources(progress.set_status)
+            self.enrich_library_with_selected_sources(progress.set_status, progress.is_cancel_requested)
         finally:
             progress.close()
 
-    def enrich_library_with_selected_sources(self, progress_callback=None) -> None:
+    def enrich_library_with_selected_sources(self, progress_callback=None, cancel_requested=None) -> None:
         use_tmdb = self.tmdb_source_button.isChecked()
         use_omdb = self.omdb_source_button.isChecked()
         if not use_tmdb and not use_omdb:
@@ -648,14 +649,25 @@ class MainWindow(QMainWindow):
 
         updated = 0
         skipped_locked = 0
+        skipped_complete = 0
+        cancelled = False
         items = self.repository.list_media()
         total = len(items)
         for index, item in enumerate(items, start=1):
+            if cancel_requested and cancel_requested():
+                cancelled = True
+                break
             if progress_callback:
                 progress_callback(f"{index}/{total} - {item.title[:32]}")
                 QApplication.processEvents()
+            if cancel_requested and cancel_requested():
+                cancelled = True
+                break
             if item.metadata_locked:
                 skipped_locked += 1
+                continue
+            if not needs_metadata_update(item):
+                skipped_complete += 1
                 continue
             before = media_signature(item)
             try:
@@ -681,7 +693,12 @@ class MainWindow(QMainWindow):
             sources.append("TMDb")
         if available_omdb:
             sources.append("OMDb")
-        message = f"{updated} média(s) enrichi(s) avec {' + '.join(sources)}."
+        if cancelled:
+            message = f"Mise à jour annulée. {updated} média(s) enrichi(s) avec {' + '.join(sources)}."
+        else:
+            message = f"{updated} média(s) enrichi(s) avec {' + '.join(sources)}."
+        if skipped_complete:
+            message += f" {skipped_complete} fiche(s) déjà complétée(s) ignorée(s)."
         if skipped_locked:
             message += f" {skipped_locked} média(s) verrouillé(s) ignoré(s)."
         self.statusBar().showMessage(message)
@@ -1055,9 +1072,11 @@ class StartupDialog(QDialog):
         message: str = "actualisation de la bibliothèque",
         wait: str = "Merci de patienter",
         status: str = "scan en cours...",
+        cancellable: bool = False,
     ) -> None:
         super().__init__(parent)
         self.theme = theme
+        self.cancel_requested = False
         self.setWindowTitle("Popcornana")
         self.setModal(True)
         self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
@@ -1107,6 +1126,12 @@ class StartupDialog(QDialog):
         self.status_label.setWordWrap(True)
         self.status_label.setFixedSize(image_width, 34)
         layout.addWidget(self.status_label, alignment=Qt.AlignHCenter)
+
+        if cancellable:
+            cancel_button = QPushButton("Annuler")
+            cancel_button.clicked.connect(self.request_cancel)
+            layout.addWidget(cancel_button, alignment=Qt.AlignHCenter)
+
         layout.addStretch()
 
         self.apply_theme()
@@ -1148,6 +1173,13 @@ class StartupDialog(QDialog):
 
     def set_status(self, message: str) -> None:
         self.status_label.setText(message)
+
+    def request_cancel(self) -> None:
+        self.cancel_requested = True
+        self.set_status("annulation demandée...")
+
+    def is_cancel_requested(self) -> bool:
+        return self.cancel_requested
 
 
 class MetadataMatchDialog(QDialog):
@@ -1465,6 +1497,17 @@ def media_signature(item: MediaItem) -> tuple:
         item.backdrop_path,
         item.tmdb_id,
     )
+
+
+def needs_metadata_update(item: MediaItem) -> bool:
+    useful_fields = (
+        item.overview,
+        item.director,
+        item.poster_path,
+        item.vote_average,
+        item.tmdb_id,
+    )
+    return not any(useful_fields)
 
 
 def build_help_html() -> str:
