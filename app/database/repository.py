@@ -60,6 +60,14 @@ class MediaRepository:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS folder_posters (
+                    folder_path TEXT PRIMARY KEY,
+                    poster_path TEXT NOT NULL
+                )
+                """
+            )
             columns = {
                 row["name"]
                 for row in connection.execute("PRAGMA table_info(media)").fetchall()
@@ -102,6 +110,22 @@ class MediaRepository:
                 ON CONFLICT(folder_path) DO UPDATE SET category = excluded.category
                 """,
                 (folder_path, category),
+            )
+
+    def list_folder_posters(self) -> dict[str, str]:
+        with self._connect() as connection:
+            rows = connection.execute("SELECT folder_path, poster_path FROM folder_posters").fetchall()
+        return {str(row["folder_path"]): str(row["poster_path"]) for row in rows}
+
+    def set_folder_poster(self, folder_path: str, poster_path: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO folder_posters (folder_path, poster_path)
+                VALUES (?, ?)
+                ON CONFLICT(folder_path) DO UPDATE SET poster_path = excluded.poster_path
+                """,
+                (folder_path, poster_path),
             )
 
     def upsert_media(self, item: MediaItem, force_identity: bool = False) -> None:
