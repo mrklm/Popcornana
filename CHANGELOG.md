@@ -4,6 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.24] - 2026-05-21
+
+- Ajout d'un réglage de vitesse de défilement dans les options de thème.
+- Défilement de la médiathèque adouci pour faciliter la revue des films.
+
 ## [1.0.23] - 2026-05-21
 
 - Ajout de la catégorie `Dossier de films` pour les répertoires contenant plusieurs films indépendants.
