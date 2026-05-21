@@ -150,7 +150,7 @@ def build_linux_appimage(executable_path: Path, artifact_base: Path) -> Path:
     icon_image = Image.open(ICON_SOURCE).convert("RGBA")
     icon_image.thumbnail((256, 256), Image.Resampling.LANCZOS)
     for icon_target in (appdir_icons / "popcornana.png", appdir / "popcornana.png", appdir / ".DirIcon"):
-        icon_image.save(icon_target)
+        icon_image.save(icon_target, format="PNG")
 
     desktop_entry = """[Desktop Entry]
 Type=Application
