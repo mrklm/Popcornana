@@ -4,6 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.25] - 2026-05-21
+
+- Ajout d'un bouton `Annuler` pendant la mise à jour globale des fiches.
+- Mise à jour automatique limitée aux fiches sans métadonnées utiles.
+
 ## [1.0.24] - 2026-05-21
 
 - Ajout d'un réglage de vitesse de défilement dans les options de thème.
