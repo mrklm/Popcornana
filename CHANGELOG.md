@@ -4,6 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.27] - 2026-05-21
+
+- Ajout d'un mode fiche plein écran au clic sur un film, un épisode ou une série.
+- Amélioration de la lisibilité des affiches et résumés avec un bouton `Retour à la liste`.
+
 ## [1.0.26] - 2026-05-21
 
 - Ajout de la catégorie `Dossier de séries` et séparation visuelle des films et séries.
