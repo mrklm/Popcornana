@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.38] - 2026-05-22
+
+- Correction du tri alphabétique commun entre films et dossiers de films.
+
 ## [1.0.37] - 2026-05-22
 
 - Ajout d'un défilement dans le zoom fiche pour préserver l'affiche et les boutons avec les longs résumés.

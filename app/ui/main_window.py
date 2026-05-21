@@ -1146,13 +1146,12 @@ class MainWindow(QMainWindow):
                 LibraryEntry("movie_folder", movie_folder_titles[folder_path], group_items, folder_path)
             )
 
-        movies.sort(key=lambda entry: entry.title.casefold())
-        movie_folder_entries.sort(key=lambda entry: entry.title.casefold())
+        movie_entries = [*movie_folder_entries, *movies]
+        movie_entries.sort(key=lambda entry: entry.title.casefold())
         series_entries.sort(key=lambda entry: entry.title.casefold())
-        if movies or movie_folder_entries:
+        if movie_entries:
             entries.append(LibraryEntry("header", "Films", []))
-            entries.extend(movie_folder_entries)
-            entries.extend(movies)
+            entries.extend(movie_entries)
         if series_entries:
             entries.append(LibraryEntry("header", "Séries", []))
             entries.extend(series_entries)
