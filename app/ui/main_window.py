@@ -180,6 +180,7 @@ class MainWindow(QMainWindow):
         self.grid.setUniformItemSizes(True)
         self.grid.setVerticalScrollMode(scroll_per_pixel_mode())
         self.grid.currentRowChanged.connect(self.select_item)
+        self.grid.itemClicked.connect(self.show_entry_fullscreen)
         self.grid.itemActivated.connect(self.activate_item)
         self.grid.setContextMenuPolicy(Qt.CustomContextMenu)
         self.grid.customContextMenuRequested.connect(self.show_library_context_menu)
@@ -926,6 +927,18 @@ class MainWindow(QMainWindow):
         self.path_label.setText(str(item.filepath))
         self._set_detail_poster(item)
 
+    def show_entry_fullscreen(self, list_item: QListWidgetItem) -> None:
+        row = self.grid.row(list_item)
+        if row < 0 or row >= len(self.entries):
+            return
+        entry = self.entries[row]
+        if entry.kind == "header":
+            return
+        theme_name = self.repository.get_setting("theme") or DEFAULT_THEME
+        dialog = FullscreenEntryDialog(entry, THEMES.get(theme_name, THEMES[DEFAULT_THEME]), self)
+        dialog.showFullScreen()
+        dialog.exec()
+
     def play_current(self) -> None:
         if self.current_entry and self.current_entry.kind == "series":
             self.open_series_folder(self.current_entry.title)
@@ -1210,6 +1223,106 @@ class StartupDialog(QDialog):
 
     def is_cancel_requested(self) -> bool:
         return self.cancel_requested
+
+
+class FullscreenEntryDialog(QDialog):
+    def __init__(self, entry: LibraryEntry, theme: dict[str, str], parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.entry = entry
+        self.theme = theme
+        self.setWindowTitle(entry.title)
+        self.setModal(True)
+        self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
+
+        screen = QApplication.primaryScreen()
+        screen_width = screen.availableGeometry().width() if screen else 1280
+        text_width = max(520, screen_width // 2)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(48, 34, 48, 34)
+        layout.setSpacing(14)
+
+        poster_label = QLabel()
+        poster_label.setObjectName("fullscreenPoster")
+        poster_label.setFixedSize(216, 324)
+        poster_label.setAlignment(Qt.AlignCenter)
+        poster = local_poster_path(entry.items[0].poster_path if entry.items else None)
+        if poster and poster.exists():
+            pixmap = QPixmap(str(poster)).scaled(216, 324, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            poster_label.setPixmap(pixmap)
+        else:
+            poster_label.setText("Aucune affiche")
+        layout.addWidget(poster_label, alignment=Qt.AlignHCenter)
+
+        title_label = QLabel(entry.title)
+        title_label.setObjectName("fullscreenTitle")
+        title_label.setWordWrap(True)
+        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setMaximumWidth(text_width)
+        layout.addWidget(title_label, alignment=Qt.AlignHCenter)
+
+        meta_label = QLabel(fullscreen_meta_text(entry))
+        meta_label.setObjectName("fullscreenMeta")
+        meta_label.setWordWrap(True)
+        meta_label.setAlignment(Qt.AlignCenter)
+        meta_label.setMaximumWidth(text_width)
+        layout.addWidget(meta_label, alignment=Qt.AlignHCenter)
+
+        overview_label = QLabel(fullscreen_overview_text(entry))
+        overview_label.setObjectName("fullscreenOverview")
+        overview_label.setWordWrap(True)
+        overview_label.setAlignment(Qt.AlignCenter)
+        overview_label.setMaximumWidth(text_width)
+        layout.addWidget(overview_label, stretch=1, alignment=Qt.AlignHCenter | Qt.AlignTop)
+
+        return_button = QPushButton("Retour à la liste")
+        return_button.clicked.connect(self.accept)
+        layout.addWidget(return_button, alignment=Qt.AlignHCenter)
+
+        self.apply_theme()
+
+    def apply_theme(self) -> None:
+        self.setStyleSheet(
+            f"""
+            QDialog {{
+                background: {self.theme["BG"]};
+                color: {self.theme["FG"]};
+            }}
+            QLabel#fullscreenPoster {{
+                background: {self.theme["FIELD"]};
+                color: {self.theme["FIELD_FG"]};
+                border: 1px solid {self.theme["PANEL"]};
+            }}
+            QLabel#fullscreenTitle {{
+                color: {self.theme["FG"]};
+                font-size: 28px;
+                font-weight: 800;
+            }}
+            QLabel#fullscreenMeta {{
+                color: {self.theme["ACCENT"]};
+                font-size: 16px;
+                font-weight: 700;
+            }}
+            QLabel#fullscreenOverview {{
+                color: {self.theme["FG"]};
+                font-size: 18px;
+                line-height: 130%;
+            }}
+            QPushButton {{
+                background: {self.theme["FIELD"]};
+                color: {self.theme["FIELD_FG"]};
+                border: 1px solid {self.theme["ACCENT"]};
+                border-radius: 6px;
+                padding: 10px 18px;
+                min-height: 28px;
+                font-weight: 700;
+            }}
+            QPushButton:hover {{
+                background: {self.theme["ACCENT"]};
+                color: {self.theme["BG"]};
+            }}
+            """
+        )
 
 
 class MetadataMatchDialog(QDialog):
@@ -1538,6 +1651,38 @@ def needs_metadata_update(item: MediaItem) -> bool:
         item.tmdb_id,
     )
     return not any(useful_fields)
+
+
+def fullscreen_meta_text(entry: LibraryEntry) -> str:
+    if entry.kind == "series":
+        reference_item = entry.items[0]
+        seasons = sorted({item.season for item in entry.items if item.season})
+        meta = ["SERIE", f"{len(entry.items)} épisode(s)"]
+        if reference_item.year:
+            meta.append(str(reference_item.year))
+        if seasons:
+            meta.append(f"{len(seasons)} saison(s)")
+        if reference_item.director:
+            meta.append(f"Réalisateur: {reference_item.director}")
+        return " | ".join(meta)
+
+    item = entry.items[0]
+    meta = [item.media_type.upper()]
+    if item.year:
+        meta.append(str(item.year))
+    if item.vote_average:
+        meta.append(f"{item.vote_average:.1f}/10")
+    if item.director:
+        meta.append(f"Réalisateur: {item.director}")
+    if item.media_type == "tv" and item.season and item.episode:
+        meta.append(f"S{item.season:02d}E{item.episode:02d}")
+    return " | ".join(meta)
+
+
+def fullscreen_overview_text(entry: LibraryEntry) -> str:
+    if not entry.items:
+        return "Résumé non disponible."
+    return entry.items[0].overview or "Résumé non disponible."
 
 
 def build_help_html() -> str:
