@@ -52,7 +52,8 @@ STARTUP_IMAGE_PATH = LOGO_PATH
 APP_ICON_PATH = STARTUP_IMAGE_PATH
 CATEGORY_LABELS = {
     "auto": "Auto",
-    "movie": "Film",
+    "movie": "Film unique",
+    "movie_folder": "Dossier de films",
     "tv": "Série",
     "ignore": "Ignorer",
 }
