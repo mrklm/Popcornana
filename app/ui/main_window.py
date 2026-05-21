@@ -1979,6 +1979,53 @@ def build_help_html() -> str:
         🛠️ En résumé : le scanner construit une liste de médias, les règles utilisateur corrigent les ambiguïtés,
         SQLite garde l'état local, puis les clients TMDb/OMDb enrichissent les fiches quand une source est activée.
     </p>
+
+    <h2>Pour les développeurs</h2>
+    <p>
+        Le code est organisé autour d'un flux simple : scanner le disque, normaliser les noms, persister les fiches,
+        construire des entrées de médiathèque, puis enrichir ou lire les médias selon l'action utilisateur.
+        Les modules principaux sont volontairement séparés pour garder l'application lisible.
+    </p>
+    <ul>
+        <li><b><code>main.py</code></b> : point d'entrée. Il initialise l'application Qt, affiche la fenêtre de démarrage, prépare les dossiers de données et ouvre <code>MainWindow</code>.</li>
+        <li><b><code>app/ui/main_window.py</code></b> : couche interface. Elle construit les onglets, la grille, le panneau détail, le zoom fiche, les dialogues et les actions utilisateur.</li>
+        <li><b><code>app/database/repository.py</code></b> : accès SQLite. Le repository centralise les réglages, les fiches médias, les catégories de dossiers et les visuels dédiés aux dossiers de films.</li>
+        <li><b><code>app/models/media.py</code></b> : modèle <code>MediaItem</code>, qui transporte chemin, titre, année, résumé, réalisateur, affiche, saison, épisode et verrou manuel.</li>
+        <li><b><code>app/scanner/video_scanner.py</code></b> : scan récursif. Il applique les catégories forcées, ignore les dossiers exclus, détecte films/séries et crée les <code>MediaItem</code> de base.</li>
+        <li><b><code>app/scanner/name_cleaner.py</code></b> : nettoyage et parsing des noms. Il retire les tags techniques et reconnaît les motifs d'épisodes.</li>
+        <li><b><code>app/tmdb/client.py</code></b> et <b><code>app/omdb/client.py</code></b> : clients de métadonnées. Ils cherchent, scorent et appliquent les résultats aux fiches.</li>
+        <li><b><code>app/utils/player.py</code></b> : lancement vidéo. Il privilégie VLC en plein écran, ajoute le sous-titre trouvé, puis retombe sur le lecteur système si besoin.</li>
+        <li><b><code>scripts/build_release.py</code></b> : build PyInstaller et packaging des artefacts macOS, Windows, Linux tar.gz et Linux AppImage.</li>
+    </ul>
+    <p>
+        La base SQLite contient plusieurs responsabilités distinctes. La table <code>media</code> décrit les vidéos,
+        <code>settings</code> conserve les préférences, <code>folder_categories</code> mémorise les corrections de
+        type par dossier, et <code>folder_posters</code> stocke uniquement les visuels des dossiers de films.
+        Ce dernier point évite de confondre un dossier de navigation avec les fiches des films qu'il contient.
+    </p>
+    <p>
+        Dans l'interface, la grille ne montre pas directement les lignes SQLite. Elle construit d'abord des
+        <code>LibraryEntry</code> : <code>movie</code>, <code>episode</code>, <code>series</code>,
+        <code>movie_folder</code> ou <code>header</code>. C'est cette couche qui regroupe les épisodes, affiche les
+        dossiers de films comme entrées navigables, trie les films et séries, puis choisit l'icône à afficher.
+    </p>
+    <p>
+        Les fiches modifiées manuellement passent <code>metadata_locked=True</code>. Les enrichissements globaux
+        sautent ces fiches pour éviter d'écraser un choix utilisateur. Les catégories forcées peuvent toutefois
+        corriger l'identité technique d'une fiche, par exemple son type film/série, afin que la médiathèque reste
+        cohérente après un changement manuel de catégorie.
+    </p>
+    <p>
+        Le zoom fiche est un <code>QDialog</code> dédié. Il utilise une largeur calculée sur l'écran, une affiche
+        fixe, des libellés plus grands et une zone <code>QScrollArea</code> pour les longs résumés. Le but est de
+        rendre la lecture confortable sans déplacer l'affiche ni les boutons quand le texte devient long.
+    </p>
+    <p>
+        Pour ajouter une évolution proprement, le plus sûr est de respecter ces frontières : le scanner découvre,
+        le repository persiste, les clients enrichissent, et <code>MainWindow</code> orchestre l'expérience sans
+        déplacer les fichiers vidéo. Les changements de structure de données doivent passer par
+        <code>repository.py</code>, et les comportements d'affichage par les <code>LibraryEntry</code>.
+    </p>
     """
 
 
