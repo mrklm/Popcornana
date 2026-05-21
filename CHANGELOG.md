@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.33] - 2026-05-21
+
+- Simplification des dossiers de films en entrées de navigation affichant la liste des films sans modifier leurs fiches.
+
 ## [1.0.32] - 2026-05-21
 
 - Correction du menu contextuel des dossiers de films et ajout de l'édition commune de leurs métadonnées.
