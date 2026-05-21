@@ -727,6 +727,30 @@ class MainWindow(QMainWindow):
         self.repository.upsert_media(item)
         self.refresh_library()
 
+    def edit_series_current(self) -> None:
+        if not self.current_entry or self.current_entry.kind != "series":
+            return
+        dialog = SeriesMetadataDialog(self.current_entry, self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        poster_path = None
+        if dialog.poster_path:
+            saved_poster = save_manual_poster(dialog.poster_path)
+            poster_path = str(saved_poster.relative_to(POSTERS_DIR))
+
+        updated_count = len(self.current_entry.items)
+        for item in self.current_entry.items:
+            item.year = dialog.year
+            item.director = dialog.director
+            item.overview = dialog.overview
+            if poster_path:
+                item.poster_path = poster_path
+            item.metadata_locked = True
+            self.repository.upsert_media(item)
+        self.refresh_library()
+        self.statusBar().showMessage(f"{updated_count} épisode(s) de la série mis à jour.")
+
     def refresh_library(self) -> None:
         self.items = self.repository.list_media()
         if self.current_series_title and not self._series_items(self.current_series_title):
@@ -806,6 +830,11 @@ class MainWindow(QMainWindow):
         self.grid.setCurrentRow(row)
         entry = self.entries[row]
         if entry.kind == "series":
+            menu = QMenu(self)
+            edit_series_action = QAction("Modifier la série", self)
+            edit_series_action.triggered.connect(self.edit_series_current)
+            menu.addAction(edit_series_action)
+            menu.exec(self.grid.mapToGlobal(position))
             return
 
         menu = QMenu(self)
@@ -844,17 +873,24 @@ class MainWindow(QMainWindow):
 
     def _show_series_details(self, entry: LibraryEntry) -> None:
         self.current_item = None
+        reference_item = entry.items[0]
         seasons = sorted({item.season for item in entry.items if item.season})
         meta = ["SERIE", f"{len(entry.items)} épisode(s)"]
+        if reference_item.year:
+            meta.append(str(reference_item.year))
         if seasons:
             meta.append(f"{len(seasons)} saison(s)")
+        if reference_item.director:
+            meta.append(f"Réalisateur: {reference_item.director}")
+        if any(item.metadata_locked for item in entry.items):
+            meta.append("MANUEL")
         self.title_label.setText(entry.title)
         self.meta_label.setText(" | ".join(meta))
-        self.overview_label.setText("Ouvre la série pour afficher ses épisodes.")
+        self.overview_label.setText(reference_item.overview or "Ouvre la série pour afficher ses épisodes.")
         self.path_label.setText("")
         self.play_button.setText("Ouvrir la série")
         self.play_button.setEnabled(True)
-        self._set_detail_poster(entry.items[0])
+        self._set_detail_poster(reference_item)
 
     def _visible_entries(self) -> list[LibraryEntry]:
         if self.current_series_title:
@@ -1111,6 +1147,88 @@ class FolderCategoriesDialog(QDialog):
             folder_path: CATEGORY_VALUES[combo.currentText()]
             for folder_path, combo in self.category_combos.items()
         }
+
+
+class SeriesMetadataDialog(QDialog):
+    def __init__(self, entry: LibraryEntry, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        reference_item = entry.items[0]
+        self.poster_path: Path | None = None
+        self.year = reference_item.year
+        self.director = reference_item.director
+        self.overview = reference_item.overview
+        self.setWindowTitle("Modifier la série")
+        self.resize(620, 470)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"Série: {entry.title}"))
+        layout.addWidget(QLabel(f"{len(entry.items)} épisode(s) concernés"))
+
+        year_layout = QHBoxLayout()
+        year_layout.setContentsMargins(0, 0, 0, 0)
+        year_layout.setSpacing(8)
+        year_layout.addWidget(QLabel("Année"))
+        self.year_field = QLineEdit(str(reference_item.year) if reference_item.year else "")
+        self.year_field.setPlaceholderText("ex: 1999")
+        year_layout.addWidget(self.year_field, stretch=1)
+        layout.addLayout(year_layout)
+
+        director_layout = QHBoxLayout()
+        director_layout.setContentsMargins(0, 0, 0, 0)
+        director_layout.setSpacing(8)
+        director_layout.addWidget(QLabel("Réalisateur"))
+        self.director_field = QLineEdit(reference_item.director or "")
+        director_layout.addWidget(self.director_field, stretch=1)
+        layout.addLayout(director_layout)
+
+        layout.addWidget(QLabel("Résumé général"))
+        self.overview_field = QTextEdit()
+        self.overview_field.setPlainText(reference_item.overview or "")
+        layout.addWidget(self.overview_field, stretch=1)
+
+        poster_layout = QHBoxLayout()
+        poster_layout.setContentsMargins(0, 0, 0, 0)
+        poster_layout.setSpacing(8)
+        self.poster_label_field = QLineEdit()
+        self.poster_label_field.setReadOnly(True)
+        self.poster_label_field.setPlaceholderText("Affiche actuelle conservée")
+        browse_button = QPushButton("Parcourir")
+        browse_button.clicked.connect(self.choose_poster)
+        poster_layout.addWidget(QLabel("Affiche"))
+        poster_layout.addWidget(self.poster_label_field, stretch=1)
+        poster_layout.addWidget(browse_button)
+        layout.addLayout(poster_layout)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def choose_poster(self) -> None:
+        filename, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            "Choisir une affiche",
+            "",
+            "Images (*.png *.jpg *.jpeg *.webp)",
+        )
+        if not filename:
+            return
+        self.poster_path = Path(filename)
+        self.poster_label_field.setText(filename)
+
+    def accept(self) -> None:
+        year_text = self.year_field.text().strip()
+        year = None
+        if year_text:
+            if not year_text.isdigit() or len(year_text) != 4:
+                QMessageBox.warning(self, "Modifier la série", "L'année doit contenir 4 chiffres.")
+                return
+            year = int(year_text)
+
+        self.year = year
+        self.director = self.director_field.text().strip() or None
+        self.overview = self.overview_field.toPlainText().strip() or None
+        super().accept()
 
 
 class ManualMetadataDialog(QDialog):

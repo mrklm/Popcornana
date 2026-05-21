@@ -4,6 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.17] - 2026-05-21
+
+- Ajout de l'édition des métadonnées communes d'une série.
+- Application de l'affiche, du résumé général, du réalisateur et de l'année à tous les épisodes sans modifier leurs titres.
+
 ## [1.0.16] - 2026-05-21
 
 - Ajout d'une gestion manuelle des catégories de dossiers de médiathèque.
