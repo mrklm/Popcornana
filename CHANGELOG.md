@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.31] - 2026-05-21
+
+- Regroupement des catégories `Dossier de films` en dossiers navigables dans la médiathèque.
+
 ## [1.0.30] - 2026-05-21
 
 - Affichage des sections `Films` et `Séries` comme grands séparateurs pleine largeur dans la médiathèque.

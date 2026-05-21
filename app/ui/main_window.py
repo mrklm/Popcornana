@@ -40,7 +40,7 @@ from app.database.repository import MediaRepository
 from app.models.media import MediaItem
 from app.omdb.client import OmdbClient, apply_omdb_result
 from app.scanner.name_cleaner import is_video_file
-from app.scanner.video_scanner import scan_videos
+from app.scanner.video_scanner import category_for_path, scan_videos
 from app.tmdb.client import TmdbClient, apply_tmdb_result
 from app.utils.paths import POSTERS_DIR, ensure_data_dirs, resource_path
 from app.utils.player import open_media
@@ -138,6 +138,7 @@ class LibraryEntry:
     kind: str
     title: str
     items: list[MediaItem]
+    folder_path: str | None = None
 
 
 class MainWindow(QMainWindow):
@@ -148,10 +149,12 @@ class MainWindow(QMainWindow):
         self.tmdb = TmdbClient()
         self.omdb = OmdbClient()
         self.items: list[MediaItem] = []
+        self.folder_categories: dict[str, str] = {}
         self.current_item: MediaItem | None = None
         self.entries: list[LibraryEntry] = []
         self.current_entry: LibraryEntry | None = None
         self.current_series_title: str | None = None
+        self.current_movie_folder_path: str | None = None
 
         self.setWindowTitle(f"Popcornana {APP_VERSION}")
         if APP_ICON_PATH.exists():
@@ -185,7 +188,7 @@ class MainWindow(QMainWindow):
         self.grid.customContextMenuRequested.connect(self.show_library_context_menu)
 
         self.back_button = QPushButton("Retour")
-        self.back_button.clicked.connect(self.close_series_folder)
+        self.back_button.clicked.connect(self.close_library_folder)
         self.back_button.setVisible(False)
 
         self.library_context_label = QLabel("Médiathèque")
@@ -587,8 +590,9 @@ class MainWindow(QMainWindow):
             return
 
         root = Path(folder).expanduser()
+        self.folder_categories = self.repository.list_folder_categories()
         before_paths = {str(item.filepath) for item in self.repository.list_media()}
-        scanned = scan_videos(root, self.repository.list_folder_categories())
+        scanned = scan_videos(root, self.folder_categories)
         for item in scanned:
             self.repository.upsert_media(item, force_identity=item.category_forced)
         scanned_paths = {str(item.filepath) for item in scanned}
@@ -866,12 +870,16 @@ class MainWindow(QMainWindow):
 
     def refresh_library(self) -> None:
         self.items = self.repository.list_media()
+        self.folder_categories = self.repository.list_folder_categories()
         if self.current_series_title and not self._series_items(self.current_series_title):
             self.current_series_title = None
+        if self.current_movie_folder_path and not self._movie_folder_items(self.current_movie_folder_path):
+            self.current_movie_folder_path = None
         self.entries = self._visible_entries()
         self.grid.clear()
-        self.back_button.setVisible(self.current_series_title is not None)
-        self.library_context_label.setText(self.current_series_title or "Médiathèque")
+        nested_title = self.current_series_title or self._current_movie_folder_title()
+        self.back_button.setVisible(nested_title is not None)
+        self.library_context_label.setText(nested_title or "Médiathèque")
 
         for index, entry in enumerate(self.entries):
             if entry.kind == "header":
@@ -910,6 +918,9 @@ class MainWindow(QMainWindow):
         if entry.kind == "header":
             self.current_item = None
             return
+        if entry.kind == "movie_folder":
+            self._show_movie_folder_details(entry)
+            return
         if entry.kind == "series":
             self._show_series_details(entry)
             return
@@ -943,6 +954,9 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def play_current(self) -> None:
+        if self.current_entry and self.current_entry.kind == "movie_folder":
+            self.open_movie_folder(self.current_entry)
+            return
         if self.current_entry and self.current_entry.kind == "series":
             self.open_series_folder(self.current_entry.title)
             return
@@ -952,6 +966,9 @@ class MainWindow(QMainWindow):
 
     def activate_item(self, _item: QListWidgetItem) -> None:
         if self.current_entry and self.current_entry.kind == "header":
+            return
+        if self.current_entry and self.current_entry.kind == "movie_folder":
+            self.open_movie_folder(self.current_entry)
             return
         if self.current_entry and self.current_entry.kind == "series":
             self.open_series_folder(self.current_entry.title)
@@ -968,6 +985,13 @@ class MainWindow(QMainWindow):
         self.grid.setCurrentRow(row)
         entry = self.entries[row]
         if entry.kind == "header":
+            return
+        if entry.kind == "movie_folder":
+            menu = QMenu(self)
+            open_folder_action = QAction("Ouvrir le dossier de films", self)
+            open_folder_action.triggered.connect(lambda: self.open_movie_folder(entry))
+            menu.addAction(open_folder_action)
+            menu.exec(self.grid.mapToGlobal(position))
             return
         if entry.kind == "series":
             menu = QMenu(self)
@@ -994,10 +1018,19 @@ class MainWindow(QMainWindow):
 
     def open_series_folder(self, title: str) -> None:
         self.current_series_title = title
+        self.current_movie_folder_path = None
         self.refresh_library()
 
-    def close_series_folder(self) -> None:
+    def open_movie_folder(self, entry: LibraryEntry) -> None:
+        if not entry.folder_path:
+            return
+        self.current_movie_folder_path = entry.folder_path
         self.current_series_title = None
+        self.refresh_library()
+
+    def close_library_folder(self) -> None:
+        self.current_series_title = None
+        self.current_movie_folder_path = None
         self.refresh_library()
 
     def _show_empty_details(self) -> None:
@@ -1032,15 +1065,33 @@ class MainWindow(QMainWindow):
         self.play_button.setEnabled(True)
         self._set_detail_poster(reference_item)
 
+    def _show_movie_folder_details(self, entry: LibraryEntry) -> None:
+        self.current_item = None
+        reference_item = entry.items[0]
+        self.title_label.setText(entry.title)
+        self.meta_label.setText(f"Dossier de films | {len(entry.items)} film(s)")
+        self.overview_label.setText("Ouvre ce dossier pour afficher les films qu'il contient.")
+        self.path_label.setText(entry.folder_path or "")
+        self.play_button.setText("Ouvrir le dossier")
+        self.play_button.setEnabled(True)
+        self._set_detail_poster(reference_item)
+
     def _visible_entries(self) -> list[LibraryEntry]:
         if self.current_series_title:
             return [
                 LibraryEntry("episode", item.title, [item])
                 for item in self._series_items(self.current_series_title)
             ]
+        if self.current_movie_folder_path:
+            return [
+                LibraryEntry("movie", item.title, [item])
+                for item in self._movie_folder_items(self.current_movie_folder_path)
+            ]
 
         entries: list[LibraryEntry] = []
         movies: list[LibraryEntry] = []
+        movie_folder_groups: dict[str, list[MediaItem]] = {}
+        movie_folder_titles: dict[str, str] = {}
         series_groups: dict[str, list[MediaItem]] = {}
         series_titles: dict[str, str] = {}
         for item in self.items:
@@ -1049,17 +1100,32 @@ class MainWindow(QMainWindow):
                 series_groups.setdefault(key, []).append(item)
                 series_titles.setdefault(key, item.title)
             else:
-                movies.append(LibraryEntry("movie", item.title, [item]))
+                movie_folder = self._movie_folder_for_item(item)
+                if movie_folder:
+                    folder_path, folder_title = movie_folder
+                    movie_folder_groups.setdefault(folder_path, []).append(item)
+                    movie_folder_titles.setdefault(folder_path, folder_title)
+                else:
+                    movies.append(LibraryEntry("movie", item.title, [item]))
 
         series_entries: list[LibraryEntry] = []
         for key, group_items in series_groups.items():
             group_items.sort(key=episode_sort_key)
             series_entries.append(LibraryEntry("series", series_titles[key], group_items))
 
+        movie_folder_entries: list[LibraryEntry] = []
+        for folder_path, group_items in movie_folder_groups.items():
+            group_items.sort(key=lambda item: item.title.casefold())
+            movie_folder_entries.append(
+                LibraryEntry("movie_folder", movie_folder_titles[folder_path], group_items, folder_path)
+            )
+
         movies.sort(key=lambda entry: entry.title.casefold())
+        movie_folder_entries.sort(key=lambda entry: entry.title.casefold())
         series_entries.sort(key=lambda entry: entry.title.casefold())
-        if movies:
+        if movies or movie_folder_entries:
             entries.append(LibraryEntry("header", "Films", []))
+            entries.extend(movie_folder_entries)
             entries.extend(movies)
         if series_entries:
             entries.append(LibraryEntry("header", "Séries", []))
@@ -1074,7 +1140,39 @@ class MainWindow(QMainWindow):
         ]
         return sorted(episodes, key=episode_sort_key)
 
+    def _movie_folder_items(self, folder_path: str) -> list[MediaItem]:
+        movies = [
+            item for item in self.items
+            if item.media_type != "tv" and self._movie_folder_path_for_item(item) == folder_path
+        ]
+        return sorted(movies, key=lambda item: item.title.casefold())
+
+    def _movie_folder_for_item(self, item: MediaItem) -> tuple[str, str] | None:
+        folder_path = self._movie_folder_path_for_item(item)
+        if not folder_path:
+            return None
+        folder = Path(folder_path)
+        return folder_path, folder.name or folder_path
+
+    def _movie_folder_path_for_item(self, item: MediaItem) -> str | None:
+        root_text = self.repository.get_setting("media_folder")
+        if not root_text:
+            return None
+        root = Path(root_text).expanduser()
+        category, category_folder = category_for_path(root, item.filepath, self.folder_categories)
+        if category != "movie_folder" or not category_folder:
+            return None
+        return str(category_folder)
+
+    def _current_movie_folder_title(self) -> str | None:
+        if not self.current_movie_folder_path:
+            return None
+        folder = Path(self.current_movie_folder_path)
+        return folder.name or self.current_movie_folder_path
+
     def _label_for_entry(self, entry: LibraryEntry) -> str:
+        if entry.kind == "movie_folder":
+            return f"{entry.title}\nDossier de films\n{len(entry.items)} film(s)"
         if entry.kind == "series":
             seasons = sorted({item.season for item in entry.items if item.season})
             season_label = f"{len(seasons)} saison(s)" if seasons else "Série"
@@ -1756,7 +1854,7 @@ def build_help_html() -> str:
     <ul>
         <li><b>Auto</b> laisse Popcornana décider.</li>
         <li><b>Film unique</b> force les vidéos du dossier à utiliser le nom du dossier comme titre du film.</li>
-        <li><b>Dossier de films</b> garde chaque vidéo comme film indépendant.</li>
+        <li><b>Dossier de films</b> affiche le dossier comme une entrée navigable tout en gardant chaque film indépendant.</li>
         <li><b>Série</b> regroupe les vidéos sous le nom du dossier choisi.</li>
         <li><b>Dossier de séries</b> regroupe les saisons et sous-dossiers d'une même série.</li>
         <li><b>Ignorer</b> exclut le dossier de la médiathèque.</li>
