@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.37] - 2026-05-22
+
+- Ajout d'un défilement dans le zoom fiche pour préserver l'affiche et les boutons avec les longs résumés.
+
 ## [1.0.36] - 2026-05-22
 
 - Francisation du type de média affiché dans les fiches avec `Film` au lieu de `MOVIE`.
