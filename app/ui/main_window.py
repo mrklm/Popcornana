@@ -5,7 +5,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, QSize, QTimer, Qt
+from PySide6.QtCore import QEvent, QPoint, QSize, QTimer, Qt
 from PySide6.QtGui import QAction, QFont, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -180,7 +180,6 @@ class MainWindow(QMainWindow):
         self.grid.setUniformItemSizes(True)
         self.grid.setVerticalScrollMode(scroll_per_pixel_mode())
         self.grid.currentRowChanged.connect(self.select_item)
-        self.grid.itemClicked.connect(self.show_entry_fullscreen)
         self.grid.itemActivated.connect(self.activate_item)
         self.grid.setContextMenuPolicy(Qt.CustomContextMenu)
         self.grid.customContextMenuRequested.connect(self.show_library_context_menu)
@@ -241,6 +240,8 @@ class MainWindow(QMainWindow):
         details = QWidget()
         details.setObjectName("detailsPanel")
         details.setFixedWidth(390)
+        details.setCursor(Qt.PointingHandCursor)
+        details.installEventFilter(self)
         details_layout = QVBoxLayout(details)
         details_layout.setContentsMargins(18, 18, 18, 18)
         details_layout.setSpacing(8)
@@ -460,6 +461,12 @@ class MainWindow(QMainWindow):
 
         self.setStatusBar(QStatusBar())
         self.show_media_count_status()
+
+    def eventFilter(self, watched, event) -> bool:
+        if watched.objectName() == "detailsPanel" and event.type() == QEvent.Type.MouseButtonRelease:
+            self.show_current_entry_fullscreen()
+            return True
+        return super().eventFilter(watched, event)
 
     def _load_saved_state(self) -> None:
         folder = self.repository.get_setting("media_folder")
@@ -927,15 +934,11 @@ class MainWindow(QMainWindow):
         self.path_label.setText(str(item.filepath))
         self._set_detail_poster(item)
 
-    def show_entry_fullscreen(self, list_item: QListWidgetItem) -> None:
-        row = self.grid.row(list_item)
-        if row < 0 or row >= len(self.entries):
-            return
-        entry = self.entries[row]
-        if entry.kind == "header":
+    def show_current_entry_fullscreen(self) -> None:
+        if not self.current_entry or self.current_entry.kind == "header":
             return
         theme_name = self.repository.get_setting("theme") or DEFAULT_THEME
-        dialog = FullscreenEntryDialog(entry, THEMES.get(theme_name, THEMES[DEFAULT_THEME]), self)
+        dialog = FullscreenEntryDialog(self.current_entry, THEMES.get(theme_name, THEMES[DEFAULT_THEME]), self)
         dialog.showFullScreen()
         dialog.exec()
 
