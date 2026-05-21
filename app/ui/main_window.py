@@ -8,6 +8,7 @@ from pathlib import Path
 from PySide6.QtCore import QPoint, QSize, QTimer, Qt
 from PySide6.QtGui import QAction, QIcon, QPixmap
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QComboBox,
     QDialog,
@@ -25,6 +26,8 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QStatusBar,
     QTabWidget,
+    QTableWidget,
+    QTableWidgetItem,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -33,6 +36,7 @@ from PySide6.QtWidgets import (
 from app.database.repository import MediaRepository
 from app.models.media import MediaItem
 from app.omdb.client import OmdbClient, apply_omdb_result
+from app.scanner.name_cleaner import is_video_file
 from app.scanner.video_scanner import scan_videos
 from app.tmdb.client import TmdbClient, apply_tmdb_result
 from app.utils.paths import POSTERS_DIR, ensure_data_dirs, resource_path
@@ -44,6 +48,13 @@ ASSETS_DIR = resource_path("assets")
 LOGO_PATH = ASSETS_DIR / "popcornana.png"
 STARTUP_IMAGE_PATH = ASSETS_DIR / "popcornana_ico.png"
 APP_ICON_PATH = STARTUP_IMAGE_PATH
+CATEGORY_LABELS = {
+    "auto": "Auto",
+    "movie": "Film",
+    "tv": "Série",
+    "ignore": "Ignorer",
+}
+CATEGORY_VALUES = {label: value for value, label in CATEGORY_LABELS.items()}
 
 THEMES = {
     "[Sombre] Midnight Garage": dict(
@@ -280,6 +291,10 @@ class MainWindow(QMainWindow):
         refresh_button.clicked.connect(self.refresh_current_folder)
         buttons_layout.addWidget(refresh_button)
 
+        categories_button = QPushButton("Gérer les catégories")
+        categories_button.clicked.connect(self.manage_categories)
+        buttons_layout.addWidget(categories_button)
+
         enrich_button = QPushButton("Mettre à jour les fiches")
         enrich_button.clicked.connect(self.update_metadata_with_progress)
         buttons_layout.addWidget(enrich_button)
@@ -475,11 +490,14 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Popcornana", "Choisis d'abord un dossier de médias.")
             return
 
+        root = Path(folder).expanduser()
         before_paths = {str(item.filepath) for item in self.repository.list_media()}
-        scanned = scan_videos(folder)
+        scanned = scan_videos(root, self.repository.list_folder_categories())
         for item in scanned:
             self.repository.upsert_media(item)
+        scanned_paths = {str(item.filepath) for item in scanned}
         removed = self.repository.delete_missing_media()
+        removed += self.repository.delete_media_not_in_scan(root, scanned_paths)
         after_paths = {str(item.filepath) for item in self.repository.list_media()}
         added = len(after_paths - before_paths)
         self.refresh_library()
@@ -489,6 +507,24 @@ class MainWindow(QMainWindow):
             message += f", {removed} retiré(s)"
         message += "."
         self.statusBar().showMessage(message)
+
+    def manage_categories(self) -> None:
+        folder = self.repository.get_setting("media_folder")
+        if not folder:
+            QMessageBox.information(self, "Popcornana", "Choisis d'abord un dossier de médias.")
+            return
+
+        dialog = FolderCategoriesDialog(
+            Path(folder).expanduser(),
+            self.repository.list_folder_categories(),
+            self,
+        )
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        for folder_path, category in dialog.selected_categories().items():
+            self.repository.set_folder_category(folder_path, category)
+        self.refresh_current_folder()
 
     def update_metadata_with_progress(self) -> None:
         self.tabs.setCurrentIndex(0)
@@ -831,7 +867,7 @@ class MainWindow(QMainWindow):
         series_groups: dict[str, list[MediaItem]] = {}
         series_titles: dict[str, str] = {}
         for item in self.items:
-            if item.media_type == "tv" and item.season and item.episode:
+            if item.media_type == "tv":
                 key = series_key(item.title)
                 series_groups.setdefault(key, []).append(item)
                 series_titles.setdefault(key, item.title)
@@ -848,7 +884,7 @@ class MainWindow(QMainWindow):
         key = series_key(title)
         episodes = [
             item for item in self.items
-            if item.media_type == "tv" and item.season and item.episode and series_key(item.title) == key
+            if item.media_type == "tv" and series_key(item.title) == key
         ]
         return sorted(episodes, key=episode_sort_key)
 
@@ -1026,6 +1062,57 @@ class MetadataMatchDialog(QDialog):
         super().accept()
 
 
+class FolderCategoriesDialog(QDialog):
+    def __init__(self, root: Path, categories: dict[str, str], parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.root = root
+        self.rows = discover_video_directories(root)
+        self.category_combos: dict[str, QComboBox] = {}
+        self.setWindowTitle("Gérer les catégories")
+        self.resize(760, 520)
+
+        layout = QVBoxLayout(self)
+
+        self.table = QTableWidget(len(self.rows), 3)
+        self.table.setHorizontalHeaderLabels(["Répertoire", "Vidéos", "Catégorie"])
+        self.table.verticalHeader().setVisible(False)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setAlternatingRowColors(True)
+        self.table.horizontalHeader().setStretchLastSection(False)
+        self.table.horizontalHeader().resizeSection(0, 470)
+        self.table.horizontalHeader().resizeSection(1, 80)
+        self.table.horizontalHeader().resizeSection(2, 150)
+
+        for row_index, (folder_path, video_count) in enumerate(self.rows):
+            folder_label = "Dossier racine" if folder_path == "." else folder_path
+            folder_item = QTableWidgetItem(folder_label)
+            folder_item.setFlags(folder_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            count_item = QTableWidgetItem(str(video_count))
+            count_item.setFlags(count_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+
+            combo = QComboBox()
+            combo.addItems(CATEGORY_VALUES.keys())
+            combo.setCurrentText(CATEGORY_LABELS.get(categories.get(folder_path, "auto"), "Auto"))
+
+            self.table.setItem(row_index, 0, folder_item)
+            self.table.setItem(row_index, 1, count_item)
+            self.table.setCellWidget(row_index, 2, combo)
+            self.category_combos[folder_path] = combo
+
+        layout.addWidget(self.table)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def selected_categories(self) -> dict[str, str]:
+        return {
+            folder_path: CATEGORY_VALUES[combo.currentText()]
+            for folder_path, combo in self.category_combos.items()
+        }
+
+
 class ManualMetadataDialog(QDialog):
     def __init__(self, item: MediaItem, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -1128,6 +1215,22 @@ def local_poster_path(poster_path: str | None) -> Path | None:
     if path.is_absolute():
         return path
     return POSTERS_DIR / poster_path.lstrip("/")
+
+
+def discover_video_directories(root: Path) -> list[tuple[str, int]]:
+    counts: dict[str, int] = {}
+    for path in sorted(root.rglob("*")):
+        if not is_video_file(path):
+            continue
+        try:
+            relative_parent = path.parent.relative_to(root)
+        except ValueError:
+            continue
+        for directory in (relative_parent, *relative_parent.parents):
+            key = "." if str(directory) == "." else directory.as_posix()
+            counts[key] = counts.get(key, 0) + 1
+
+    return sorted(counts.items(), key=lambda item: (item[0] != ".", item[0].casefold()))
 
 
 def save_manual_poster(source: Path) -> Path:

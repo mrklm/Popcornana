@@ -52,6 +52,14 @@ class MediaRepository:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS folder_categories (
+                    folder_path TEXT PRIMARY KEY,
+                    category TEXT NOT NULL
+                )
+                """
+            )
             columns = {
                 row["name"]
                 for row in connection.execute("PRAGMA table_info(media)").fetchall()
@@ -75,6 +83,25 @@ class MediaRepository:
                 ON CONFLICT(key) DO UPDATE SET value = excluded.value
                 """,
                 (key, value),
+            )
+
+    def list_folder_categories(self) -> dict[str, str]:
+        with self._connect() as connection:
+            rows = connection.execute("SELECT folder_path, category FROM folder_categories").fetchall()
+        return {str(row["folder_path"]): str(row["category"]) for row in rows}
+
+    def set_folder_category(self, folder_path: str, category: str) -> None:
+        with self._connect() as connection:
+            if category == "auto":
+                connection.execute("DELETE FROM folder_categories WHERE folder_path = ?", (folder_path,))
+                return
+            connection.execute(
+                """
+                INSERT INTO folder_categories (folder_path, category)
+                VALUES (?, ?)
+                ON CONFLICT(folder_path) DO UPDATE SET category = excluded.category
+                """,
+                (folder_path, category),
             )
 
     def upsert_media(self, item: MediaItem) -> None:
@@ -184,6 +211,23 @@ class MediaRepository:
         with self._connect() as connection:
             connection.executemany("DELETE FROM media WHERE filepath = ?", [(path,) for path in missing_paths])
         return len(missing_paths)
+
+    def delete_media_not_in_scan(self, root: Path, scanned_paths: set[str]) -> int:
+        items = self.list_media()
+        stale_paths = []
+        for item in items:
+            try:
+                item.filepath.relative_to(root)
+            except ValueError:
+                continue
+            if str(item.filepath) not in scanned_paths:
+                stale_paths.append(str(item.filepath))
+        if not stale_paths:
+            return 0
+
+        with self._connect() as connection:
+            connection.executemany("DELETE FROM media WHERE filepath = ?", [(path,) for path in stale_paths])
+        return len(stale_paths)
 
     @staticmethod
     def _row_to_media(row: sqlite3.Row) -> MediaItem:
