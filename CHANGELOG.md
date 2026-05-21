@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.18] - 2026-05-21
+
+- Ajout de cases à cocher devant les sources TMDb et OMDb pour clarifier leur sélection.
+
 ## [1.0.17] - 2026-05-21
 
 - Ajout de l'édition des métadonnées communes d'une série.

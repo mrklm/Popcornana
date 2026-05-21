@@ -10,6 +10,7 @@ from PySide6.QtGui import QAction, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -332,10 +333,14 @@ class MainWindow(QMainWindow):
         self.tmdb_source_button.setObjectName("sourceButton")
         self.tmdb_source_button.setCheckable(True)
         self.tmdb_source_button.toggled.connect(self.save_source_preferences)
+        self.tmdb_source_checkbox = QCheckBox()
+        self.tmdb_source_checkbox.toggled.connect(self.tmdb_source_button.setChecked)
+        self.tmdb_source_button.toggled.connect(self.tmdb_source_checkbox.setChecked)
 
         tmdb_key_layout = QHBoxLayout()
         tmdb_key_layout.setContentsMargins(0, 0, 0, 0)
         tmdb_key_layout.setSpacing(8)
+        tmdb_key_layout.addWidget(self.tmdb_source_checkbox)
         tmdb_key_layout.addWidget(self.tmdb_source_button)
         tmdb_key_label = QLabel("Clé TMDb")
         tmdb_key_label.setObjectName("fieldLabel")
@@ -357,10 +362,14 @@ class MainWindow(QMainWindow):
         self.omdb_source_button.setObjectName("sourceButton")
         self.omdb_source_button.setCheckable(True)
         self.omdb_source_button.toggled.connect(self.save_source_preferences)
+        self.omdb_source_checkbox = QCheckBox()
+        self.omdb_source_checkbox.toggled.connect(self.omdb_source_button.setChecked)
+        self.omdb_source_button.toggled.connect(self.omdb_source_checkbox.setChecked)
 
         omdb_key_layout = QHBoxLayout()
         omdb_key_layout.setContentsMargins(0, 0, 0, 0)
         omdb_key_layout.setSpacing(8)
+        omdb_key_layout.addWidget(self.omdb_source_checkbox)
         omdb_key_layout.addWidget(self.omdb_source_button)
         omdb_key_label = QLabel("Clé OMDb")
         omdb_key_label.setObjectName("fieldLabel")
@@ -438,10 +447,16 @@ class MainWindow(QMainWindow):
 
         self.tmdb_source_button.blockSignals(True)
         self.omdb_source_button.blockSignals(True)
+        self.tmdb_source_checkbox.blockSignals(True)
+        self.omdb_source_checkbox.blockSignals(True)
         self.tmdb_source_button.setChecked(tmdb_enabled)
         self.omdb_source_button.setChecked(omdb_enabled)
+        self.tmdb_source_checkbox.setChecked(tmdb_enabled)
+        self.omdb_source_checkbox.setChecked(omdb_enabled)
         self.tmdb_source_button.blockSignals(False)
         self.omdb_source_button.blockSignals(False)
+        self.tmdb_source_checkbox.blockSignals(False)
+        self.omdb_source_checkbox.blockSignals(False)
 
     def save_source_preferences(self, _checked: bool | None = None) -> None:
         self.repository.set_setting("metadata_source_tmdb", "1" if self.tmdb_source_button.isChecked() else "0")
