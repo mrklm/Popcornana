@@ -177,7 +177,7 @@ class MainWindow(QMainWindow):
         self.grid = QListWidget()
         self.grid.setObjectName("libraryGrid")
         self.grid.setViewMode(QListWidget.IconMode)
-        self.grid.setIconSize(QSize(150, 225))
+        self.grid.setIconSize(QSize(144, 216))
         self.grid.setResizeMode(QListWidget.Adjust)
         self.grid.setMovement(QListWidget.Static)
         self.grid.setSpacing(14)
@@ -900,7 +900,7 @@ class MainWindow(QMainWindow):
                 list_item = QListWidgetItem(self._icon_for_entry(entry), self._label_for_entry(entry))
                 list_item.setTextAlignment(Qt.AlignCenter)
                 list_item.setData(Qt.UserRole, index)
-                list_item.setSizeHint(QSize(180, 285))
+                list_item.setSizeHint(QSize(184, 318))
             self.grid.addItem(list_item)
         if self.entries:
             first_media_row = next((row for row, entry in enumerate(self.entries) if entry.kind != "header"), 0)
@@ -976,7 +976,7 @@ class MainWindow(QMainWindow):
         if self.current_entry and self.current_entry.kind == "series":
             self.open_series_folder(self.current_entry.title)
         else:
-            self.play_current()
+            self.show_current_entry_fullscreen()
 
     def show_library_context_menu(self, position: QPoint) -> None:
         list_item = self.grid.itemAt(position)
@@ -1223,7 +1223,7 @@ class MainWindow(QMainWindow):
         poster = local_poster_path(item.poster_path)
         if poster and poster.exists():
             return QIcon(str(poster))
-        pixmap = QPixmap(150, 225)
+        pixmap = QPixmap(144, 216)
         pixmap.fill(Qt.darkGray)
         return QIcon(pixmap)
 

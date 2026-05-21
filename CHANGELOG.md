@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.43] - 2026-05-22
+
+- Ouverture du zoom fiche au double-clic et meilleur espacement des titres longs dans la grille.
+
 ## [1.0.42] - 2026-05-22
 
 - Forçage des polices du zoom fiche pour garantir une meilleure lisibilité sous macOS Catalina.
