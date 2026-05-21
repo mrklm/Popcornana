@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
+    QTextBrowser,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -408,6 +409,26 @@ class MainWindow(QMainWindow):
         options_layout.addStretch()
         self.tabs.addTab(options_tab, "Options")
 
+        help_tab = QWidget()
+        help_tab.setObjectName("helpTab")
+        help_layout = QVBoxLayout(help_tab)
+        help_layout.setContentsMargins(18, 18, 18, 18)
+        help_layout.setSpacing(16)
+
+        self.help_logo_label = QLabel()
+        self.help_logo_label.setObjectName("logoLabel")
+        self.help_logo_label.setAlignment(Qt.AlignCenter)
+        self.help_logo_label.setFixedSize(320, 240)
+        self._load_logo_into(self.help_logo_label)
+        help_layout.addWidget(self.help_logo_label, alignment=Qt.AlignHCenter)
+
+        help_text = QTextBrowser()
+        help_text.setObjectName("helpText")
+        help_text.setOpenExternalLinks(True)
+        help_text.setHtml(build_help_html())
+        help_layout.addWidget(help_text)
+        self.tabs.addTab(help_tab, "Aide")
+
         page_layout.addWidget(self.tabs, stretch=1)
         self.setCentralWidget(page)
 
@@ -429,10 +450,13 @@ class MainWindow(QMainWindow):
         self.apply_theme(theme_name)
 
     def _load_logo(self) -> None:
+        self._load_logo_into(self.logo_label)
+
+    def _load_logo_into(self, label: QLabel) -> None:
         if not LOGO_PATH.exists():
             return
         pixmap = QPixmap(str(LOGO_PATH)).scaled(320, 240, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        self.logo_label.setPixmap(pixmap)
+        label.setPixmap(pixmap)
 
     def change_theme(self, theme_name: str) -> None:
         if theme_name not in THEMES:
@@ -1395,6 +1419,85 @@ def media_signature(item: MediaItem) -> tuple:
     )
 
 
+def build_help_html() -> str:
+    return """
+    <h1>Popcornana</h1>
+    <p>
+        Popcornana est une application locale pour organiser une médiathèque de films et de séries.
+        Elle scanne un dossier choisi, affiche les vidéos sous forme de grille, enrichit les fiches avec
+        des métadonnées et lance la lecture avec VLC quand il est disponible.
+    </p>
+
+    <h2>Utilisation rapide</h2>
+    <ul>
+        <li><b>Choisir dossier</b> sélectionne le dossier racine de la médiathèque.</li>
+        <li><b>Actualiser</b> scanne les vidéos, ajoute les nouveaux fichiers et retire ceux qui n'existent plus.</li>
+        <li><b>Mettre à jour les fiches</b> enrichit les médias avec TMDb et/ou OMDb selon les sources cochées.</li>
+        <li><b>Gérer les catégories</b> permet de forcer un dossier en Auto, Film, Série ou Ignorer.</li>
+    </ul>
+
+    <h2>Films, séries et corrections manuelles</h2>
+    <p>
+        La détection automatique reconnaît les épisodes à partir de noms comme <code>S01E02</code>,
+        <code>1x02</code> ou des dossiers de saison. Quand une structure est ambiguë, utilisez
+        <b>Gérer les catégories</b> pour corriger le dossier concerné.
+    </p>
+    <ul>
+        <li><b>Auto</b> laisse Popcornana décider.</li>
+        <li><b>Film</b> force les vidéos du dossier à rester des films.</li>
+        <li><b>Série</b> regroupe les vidéos sous le nom du dossier.</li>
+        <li><b>Ignorer</b> exclut le dossier de la médiathèque.</li>
+    </ul>
+    <p>
+        Un clic droit sur une fiche permet de lancer une recherche TMDb/OMDb ou une édition manuelle.
+        Un clic droit sur une série permet de modifier les métadonnées communes de la série :
+        affiche, résumé général, réalisateur et année. Les titres des épisodes ne sont pas modifiés.
+    </p>
+
+    <h2>Clés API</h2>
+    <p>
+        Les clés API servent à récupérer titres, résumés, affiches, années, notes et réalisateurs.
+        Les vidéos restent sur votre machine ; seules les recherches de métadonnées appellent les services externes.
+    </p>
+    <ul>
+        <li>TMDb : <a href="https://www.themoviedb.org/settings/api">https://www.themoviedb.org/settings/api</a></li>
+        <li>OMDb : <a href="https://www.omdbapi.com/apikey.aspx">https://www.omdbapi.com/apikey.aspx</a></li>
+    </ul>
+    <p>
+        Après avoir obtenu une clé, collez-la dans <b>Options avancées</b>, enregistrez-la, puis cochez la source voulue.
+        Si TMDb et OMDb sont cochés, Popcornana essaie TMDb en premier puis utilise OMDb en secours.
+    </p>
+
+    <h2>Conseils pratiques</h2>
+    <ul>
+        <li>Pour les séries, privilégiez des noms contenant saison et épisode, par exemple <code>S02E05</code>.</li>
+        <li>Pour les sagas de films, forcez le dossier en <b>Film</b> si la détection hésite.</li>
+        <li>Pour les bonus, making-of ou fichiers temporaires, utilisez <b>Ignorer</b>.</li>
+        <li>Une fiche modifiée manuellement est protégée contre les enrichissements automatiques suivants.</li>
+    </ul>
+
+    <h2>Pour les Geeks</h2>
+    <p>
+        Popcornana est une application desktop PySide6. L'interface lit et écrit dans une base SQLite locale.
+        Les fichiers vidéo ne sont jamais déplacés : la base conserve leurs chemins, les métadonnées récupérées
+        et les réglages utilisateur.
+    </p>
+    <ul>
+        <li><b>Scan</b> : le scanner parcourt récursivement le dossier racine et filtre les extensions vidéo connues.</li>
+        <li><b>Parsing</b> : les noms de fichiers sont nettoyés, puis comparés à des motifs d'épisodes et d'années.</li>
+        <li><b>Catégories</b> : les règles par dossier sont stockées en SQLite. La règle la plus proche du fichier gagne.</li>
+        <li><b>Enrichissement</b> : TMDb et OMDb renvoient des résultats scorés. Le titre et l'année aident à choisir le meilleur candidat.</li>
+        <li><b>Images</b> : les affiches téléchargées ou choisies manuellement sont mises en cache dans le dossier de données.</li>
+        <li><b>Verrouillage</b> : une édition manuelle active un verrou pour éviter qu'un futur enrichissement automatique écrase la fiche.</li>
+        <li><b>Build</b> : les releases sont générées avec PyInstaller. Les artefacts Linux incluent aussi une AppImage.</li>
+    </ul>
+    <p>
+        🛠️ En résumé : le scanner construit une liste de médias, les règles utilisateur corrigent les ambiguïtés,
+        SQLite garde l'état local, puis les clients TMDb/OMDb enrichissent les fiches quand une source est activée.
+    </p>
+    """
+
+
 def series_key(title: str) -> str:
     return " ".join(title.casefold().split())
 
@@ -1414,7 +1517,7 @@ def build_stylesheet(theme: dict[str, str]) -> str:
             background: {theme["BG"]};
             color: {theme["FG"]};
         }}
-        QWidget#generalTab, QWidget#optionsTab {{
+        QWidget#generalTab, QWidget#optionsTab, QWidget#helpTab {{
             background: {theme["BG"]};
         }}
         QWidget#detailsPanel, QWidget#optionSection {{
@@ -1524,6 +1627,14 @@ def build_stylesheet(theme: dict[str, str]) -> str:
         }}
         QLineEdit#apiKeyField:hover, QLineEdit#apiKeyField:focus {{
             border-color: {theme["ACCENT"]};
+        }}
+        QTextBrowser#helpText {{
+            background: {theme["FIELD"]};
+            color: {theme["FIELD_FG"]};
+            border: 1px solid {theme["PANEL"]};
+            border-radius: 6px;
+            padding: 14px;
+            font-size: 14px;
         }}
         QComboBox QAbstractItemView {{
             background: {theme["FIELD"]};
