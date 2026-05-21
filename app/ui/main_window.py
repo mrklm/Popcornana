@@ -1323,8 +1323,15 @@ def run() -> None:
     theme_name = window.repository.get_setting("theme") or DEFAULT_THEME
     startup = StartupDialog(THEMES.get(theme_name, THEMES[DEFAULT_THEME]), window)
 
+    def force_full_screen() -> None:
+        window.setWindowState(window.windowState() | Qt.WindowFullScreen)
+        window.showFullScreen()
+        window.raise_()
+        window.activateWindow()
+
     def finish_startup() -> None:
         startup.close()
+        force_full_screen()
 
     def refresh_during_startup() -> None:
         startup.set_status("scan en cours...")
@@ -1338,6 +1345,7 @@ def run() -> None:
 
     window.show()
     startup.show_centered_over_parent()
+    QTimer.singleShot(0, force_full_screen)
     QTimer.singleShot(100, refresh_during_startup)
     QTimer.singleShot(5000, finish_startup)
     sys.exit(app.exec())

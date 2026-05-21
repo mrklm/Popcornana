@@ -4,7 +4,12 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
-## [1.0.11] - 2026-05-21
+## [1.0.13] - 2026-05-21
+
+- Ajout d'un artefact Linux `.AppImage` aux builds de release.
+- Ouverture de l'application directement en plein écran, y compris pour la variante Catalina.
+
+## [1.0.12] - 2026-05-21
 
 - Réorganisation du bloc `Options avancées` avec une ligne par source et un bouton d'enregistrement par clé API.
 

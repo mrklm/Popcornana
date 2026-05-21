@@ -1,6 +1,6 @@
 # Popcornana
 
-Version actuelle: **1.0.11**
+Version actuelle: **1.0.13**
 
 Popcornana est une application desktop locale pour organiser une médiathèque de films et séries. Elle scanne un dossier de vidéos, nettoie les noms de fichiers, affiche les médias dans une grille visuelle, récupère des métadonnées depuis OMDb et/ou TMDb, garde les affiches en cache local, puis lance la lecture avec VLC avc le sous titre quand il est disponible.
 
@@ -151,16 +151,17 @@ Artefacts produits:
 
 - `Popcornana-macos-intel.zip`: application `.app` macOS Intel ;
 - `Popcornana-windows-x64.zip`: exécutable Windows x64 ;
-- `Popcornana-linux-x64.tar.gz`: exécutable Linux x64.
+- `Popcornana-linux-x64.tar.gz`: exécutable Linux x64 ;
+- `Popcornana-linux-x64.AppImage`: application Linux x64 portable.
 
 Le workflow est défini dans `.github/workflows/release.yml`. Il peut être lancé manuellement depuis l'onglet Actions de GitHub, ou automatiquement en poussant un tag `v*`.
 
 Exemple de release:
 
 ```bash
-git tag v1.0.11
+git tag v1.0.13
 git push origin main
-git push origin v1.0.11
+git push origin v1.0.13
 ```
 
 Sur un tag, GitHub Actions construit les trois artefacts et les ajoute à la release GitHub correspondante.
@@ -194,8 +195,31 @@ Linux:
 python scripts/build_release.py --target linux-x64
 ```
 
+La cible Linux nécessite `appimagetool` dans le `PATH` pour générer l'artefact `.AppImage`.
+
+## Build macOS Catalina legacy
+
+Une branche dédiée `legacy-macos-catalina` prépare une variante pour les Macs Intel limités à macOS Catalina 10.15.
+
+Sur cette branche, `requirements.txt` épingle directement `PySide6==6.2.4` pour conserver la compatibilité avec Catalina et Python 3.8.2.
+
+Build local recommandé depuis un Mac Intel sous Catalina:
+
+```bash
+python3.8 -m venv .venv-catalina
+source .venv-catalina/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-build-macos-catalina.txt
+python -m PyInstaller --windowed --name Popcornana --icon assets/popcornana.icns --add-data "assets:assets" --collect-all PySide6 main.py
+```
+
+L'application générée se trouve dans `dist/Popcornana.app`.
+
+Voir [docs/MACOS_CATALINA.md](docs/MACOS_CATALINA.md) pour les détails et limites.
+
 ## Version
 
-La version actuelle est `1.0.11`.
+La version actuelle est `1.0.13`.
 
 Voir [CHANGELOG.md](CHANGELOG.md) pour le détail de l'état de la release.

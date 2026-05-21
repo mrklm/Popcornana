@@ -126,6 +126,58 @@ def package_artifact(target: str) -> None:
         archive.add(executable_path, arcname=executable_path.name)
     print(tar_path)
 
+    appimage_path = build_linux_appimage(executable_path, artifact_base)
+    print(appimage_path)
+
+
+def build_linux_appimage(executable_path: Path, artifact_base: Path) -> Path:
+    appimagetool = shutil.which("appimagetool")
+    if not appimagetool:
+        raise SystemExit("appimagetool is required to build the Linux AppImage artifact.")
+
+    appdir = BUILD_DIR / "Popcornana.AppDir"
+    appdir_bin = appdir / "usr" / "bin"
+    appdir_icons = appdir / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps"
+    appdir_applications = appdir / "usr" / "share" / "applications"
+    appdir_bin.mkdir(parents=True, exist_ok=True)
+    appdir_icons.mkdir(parents=True, exist_ok=True)
+    appdir_applications.mkdir(parents=True, exist_ok=True)
+
+    bundled_executable = appdir_bin / "Popcornana"
+    shutil.copy2(executable_path, bundled_executable)
+    bundled_executable.chmod(bundled_executable.stat().st_mode | 0o755)
+
+    icon_image = Image.open(ICON_SOURCE).convert("RGBA")
+    icon_image.thumbnail((256, 256), Image.Resampling.LANCZOS)
+    for icon_target in (appdir_icons / "popcornana.png", appdir / "popcornana.png", appdir / ".DirIcon"):
+        icon_image.save(icon_target)
+
+    desktop_entry = """[Desktop Entry]
+Type=Application
+Name=Popcornana
+Exec=Popcornana
+Icon=popcornana
+Categories=AudioVideo;Video;
+Terminal=false
+"""
+    (appdir / "popcornana.desktop").write_text(desktop_entry, encoding="utf-8")
+    (appdir_applications / "popcornana.desktop").write_text(desktop_entry, encoding="utf-8")
+
+    apprun = """#!/bin/sh
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/bin/Popcornana" "$@"
+"""
+    apprun_path = appdir / "AppRun"
+    apprun_path.write_text(apprun, encoding="utf-8")
+    apprun_path.chmod(0o755)
+
+    appimage_path = artifact_base.with_suffix(".AppImage")
+    env = os.environ.copy()
+    env.setdefault("ARCH", "x86_64")
+    env.setdefault("APPIMAGE_EXTRACT_AND_RUN", "1")
+    subprocess.run([appimagetool, str(appdir), str(appimage_path)], cwd=ROOT_DIR, env=env, check=True)
+    return appimage_path
+
 
 def zip_directory(source: Path, target: Path) -> None:
     with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as archive:
