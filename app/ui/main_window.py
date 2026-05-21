@@ -1421,7 +1421,16 @@ class FullscreenEntryDialog(QDialog):
         overview_label.setWordWrap(True)
         overview_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         overview_label.setFixedWidth(text_width)
-        layout.addWidget(overview_label, stretch=1, alignment=Qt.AlignHCenter | Qt.AlignTop)
+        overview_scroll = QScrollArea()
+        overview_scroll.setObjectName("fullscreenOverviewScroll")
+        overview_scroll.setWidgetResizable(True)
+        overview_scroll.setFrameShape(QScrollArea.NoFrame)
+        overview_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        overview_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        overview_scroll.setFixedWidth(text_width)
+        overview_scroll.setMinimumHeight(120)
+        overview_scroll.setWidget(overview_label)
+        layout.addWidget(overview_scroll, stretch=1, alignment=Qt.AlignHCenter)
 
         button_row = QHBoxLayout()
         button_row.setContentsMargins(0, 0, 0, 0)
@@ -1491,6 +1500,10 @@ class FullscreenEntryDialog(QDialog):
                 color: {self.theme["FG"]};
                 font-size: 21px;
                 line-height: 130%;
+            }}
+            QScrollArea#fullscreenOverviewScroll {{
+                background: transparent;
+                border: none;
             }}
             QPushButton {{
                 background: {self.theme["FIELD"]};
