@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.15] - 2026-05-21
+
+- Ajout du réalisateur aux métadonnées affichées, enrichies et éditables.
+
 ## [1.0.14] - 2026-05-21
 
 - Repositionnement de la fenêtre de démarrage légèrement plus haut à l'ouverture.

@@ -25,6 +25,7 @@ class TmdbResult:
     original_title: str | None
     year: int | None
     overview: str | None
+    director: str | None
     poster_path: str | None
     backdrop_path: str | None
     vote_average: float | None
@@ -73,9 +74,9 @@ class TmdbClient:
         best = max(results, key=lambda result: result.score)
         year_ok = not item.year or not best.year or abs(item.year - best.year) <= 1
         if best.score >= 86 and year_ok:
-            return apply_tmdb_result(item, best)
+            return apply_tmdb_result(item, self.with_director(best))
         if len(results) == 1 and best.score >= 75 and year_ok:
-            return apply_tmdb_result(item, best)
+            return apply_tmdb_result(item, self.with_director(best))
         return item
 
     def download_poster(self, poster_path: str | None) -> Path | None:
@@ -91,6 +92,33 @@ class TmdbClient:
         response.raise_for_status()
         target.write_bytes(response.content)
         return target
+
+    def with_director(self, result: TmdbResult) -> TmdbResult:
+        result.director = self._fetch_director(result.media_type, result.tmdb_id)
+        return result
+
+    def _fetch_director(self, media_type: str, tmdb_id: int) -> str | None:
+        endpoint = f"tv/{tmdb_id}" if media_type == "tv" else f"movie/{tmdb_id}/credits"
+        response = self.session.get(
+            f"{TMDB_API_BASE}/{endpoint}",
+            params={"api_key": self.api_key, "language": "fr-FR"},
+            timeout=15,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if media_type == "tv":
+            names = [
+                creator.get("name")
+                for creator in payload.get("created_by", [])
+                if creator.get("name")
+            ]
+        else:
+            names = [
+                crew_member.get("name")
+                for crew_member in payload.get("crew", [])
+                if crew_member.get("job") == "Director" and crew_member.get("name")
+            ]
+        return ", ".join(dict.fromkeys(names)) or None
 
     @staticmethod
     def _result_from_payload(payload: dict, item: MediaItem) -> TmdbResult:
@@ -108,6 +136,7 @@ class TmdbClient:
             original_title=original_title,
             year=year,
             overview=payload.get("overview"),
+            director=None,
             poster_path=payload.get("poster_path"),
             backdrop_path=payload.get("backdrop_path"),
             vote_average=payload.get("vote_average"),
@@ -121,6 +150,7 @@ def apply_tmdb_result(item: MediaItem, result: TmdbResult) -> MediaItem:
     item.original_title = result.original_title
     item.year = result.year or item.year
     item.overview = result.overview
+    item.director = result.director or item.director
     item.poster_path = result.poster_path
     item.backdrop_path = result.backdrop_path
     item.vote_average = result.vote_average

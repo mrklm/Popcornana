@@ -596,13 +596,22 @@ class MainWindow(QMainWindow):
             if item.metadata_locked:
                 continue
             try:
-                before = (item.title, item.year, item.overview, item.genres, item.vote_average, item.poster_path)
+                before = (
+                    item.title,
+                    item.year,
+                    item.overview,
+                    item.genres,
+                    item.director,
+                    item.vote_average,
+                    item.poster_path,
+                )
                 enriched = self.omdb.enrich_automatically(item)
                 after = (
                     enriched.title,
                     enriched.year,
                     enriched.overview,
                     enriched.genres,
+                    enriched.director,
                     enriched.vote_average,
                     enriched.poster_path,
                 )
@@ -630,7 +639,7 @@ class MainWindow(QMainWindow):
             return
         dialog = MetadataMatchDialog("TMDb", self.current_item, results, self)
         if dialog.exec() == QDialog.Accepted and dialog.selected_result:
-            item = apply_tmdb_result(self.current_item, dialog.selected_result)
+            item = apply_tmdb_result(self.current_item, self.tmdb.with_director(dialog.selected_result))
             item.metadata_locked = True
             if item.poster_path:
                 self.tmdb.download_poster(item.poster_path)
@@ -673,6 +682,7 @@ class MainWindow(QMainWindow):
         item = self.current_item
         item.title = dialog.title
         item.year = dialog.year
+        item.director = dialog.director
         item.overview = dialog.overview
         item.metadata_locked = True
         if dialog.poster_path:
@@ -725,6 +735,8 @@ class MainWindow(QMainWindow):
             meta.append(str(item.year))
         if item.vote_average:
             meta.append(f"{item.vote_average:.1f}/10")
+        if item.director:
+            meta.append(f"Réalisateur: {item.director}")
         if item.media_type == "tv" and item.season and item.episode:
             meta.append(f"S{item.season:02d}E{item.episode:02d}")
         if item.metadata_locked:
@@ -1020,6 +1032,7 @@ class ManualMetadataDialog(QDialog):
         self.poster_path: Path | None = None
         self.title = item.title
         self.year = item.year
+        self.director = item.director
         self.overview = item.overview
         self.setWindowTitle("Recherche manuelle")
         self.resize(620, 520)
@@ -1043,6 +1056,14 @@ class ManualMetadataDialog(QDialog):
         self.year_field.setPlaceholderText("ex: 1999")
         year_layout.addWidget(self.year_field, stretch=1)
         layout.addLayout(year_layout)
+
+        director_layout = QHBoxLayout()
+        director_layout.setContentsMargins(0, 0, 0, 0)
+        director_layout.setSpacing(8)
+        director_layout.addWidget(QLabel("Réalisateur"))
+        self.director_field = QLineEdit(item.director or "")
+        director_layout.addWidget(self.director_field, stretch=1)
+        layout.addLayout(director_layout)
 
         layout.addWidget(QLabel("Résumé"))
         self.overview_field = QTextEdit()
@@ -1095,6 +1116,7 @@ class ManualMetadataDialog(QDialog):
 
         self.title = title
         self.year = year
+        self.director = self.director_field.text().strip() or None
         self.overview = self.overview_field.toPlainText().strip() or None
         super().accept()
 
@@ -1129,6 +1151,7 @@ def media_signature(item: MediaItem) -> tuple:
         item.year,
         item.overview,
         item.genres,
+        item.director,
         item.vote_average,
         item.poster_path,
         item.backdrop_path,
