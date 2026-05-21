@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.20] - 2026-05-21
+
+- Correction de la génération AppImage Linux quand l'icône `.DirIcon` est créée.
+
 ## [1.0.19] - 2026-05-21
 
 - Ajout d'un onglet `Aide` avec logo, présentation du programme, liens API et section technique.
