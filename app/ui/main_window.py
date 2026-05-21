@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QPoint, QSize, QTimer, Qt
-from PySide6.QtGui import QAction, QIcon, QPixmap
+from PySide6.QtGui import QAction, QFont, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -56,6 +56,7 @@ CATEGORY_LABELS = {
     "movie": "Film unique",
     "movie_folder": "Dossier de films",
     "tv": "Série",
+    "series_folder": "Dossier de séries",
     "ignore": "Ignorer",
 }
 CATEGORY_VALUES = {label: value for value, label in CATEGORY_LABELS.items()}
@@ -581,7 +582,7 @@ class MainWindow(QMainWindow):
         before_paths = {str(item.filepath) for item in self.repository.list_media()}
         scanned = scan_videos(root, self.repository.list_folder_categories())
         for item in scanned:
-            self.repository.upsert_media(item)
+            self.repository.upsert_media(item, force_identity=item.category_forced)
         scanned_paths = {str(item.filepath) for item in scanned}
         removed = self.repository.delete_missing_media()
         removed += self.repository.delete_media_not_in_scan(root, scanned_paths)
@@ -865,13 +866,25 @@ class MainWindow(QMainWindow):
         self.library_context_label.setText(self.current_series_title or "Médiathèque")
 
         for index, entry in enumerate(self.entries):
-            list_item = QListWidgetItem(self._icon_for_entry(entry), self._label_for_entry(entry))
-            list_item.setTextAlignment(Qt.AlignCenter)
-            list_item.setData(Qt.UserRole, index)
-            list_item.setSizeHint(QSize(180, 285))
+            if entry.kind == "header":
+                list_item = QListWidgetItem(entry.title)
+                list_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                header_font = QFont()
+                header_font.setPointSize(16)
+                header_font.setBold(True)
+                list_item.setFont(header_font)
+                list_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                list_item.setSizeHint(QSize(180, 44))
+                list_item.setData(Qt.UserRole, None)
+            else:
+                list_item = QListWidgetItem(self._icon_for_entry(entry), self._label_for_entry(entry))
+                list_item.setTextAlignment(Qt.AlignCenter)
+                list_item.setData(Qt.UserRole, index)
+                list_item.setSizeHint(QSize(180, 285))
             self.grid.addItem(list_item)
         if self.entries:
-            self.grid.setCurrentRow(0)
+            first_media_row = next((row for row, entry in enumerate(self.entries) if entry.kind != "header"), 0)
+            self.grid.setCurrentRow(first_media_row)
         else:
             self._show_empty_details()
 
@@ -885,6 +898,9 @@ class MainWindow(QMainWindow):
             return
         entry = self.entries[row]
         self.current_entry = entry
+        if entry.kind == "header":
+            self.current_item = None
+            return
         if entry.kind == "series":
             self._show_series_details(entry)
             return
@@ -919,6 +935,8 @@ class MainWindow(QMainWindow):
         open_media(self.current_item.filepath)
 
     def activate_item(self, _item: QListWidgetItem) -> None:
+        if self.current_entry and self.current_entry.kind == "header":
+            return
         if self.current_entry and self.current_entry.kind == "series":
             self.open_series_folder(self.current_entry.title)
         else:
@@ -933,6 +951,8 @@ class MainWindow(QMainWindow):
             return
         self.grid.setCurrentRow(row)
         entry = self.entries[row]
+        if entry.kind == "header":
+            return
         if entry.kind == "series":
             menu = QMenu(self)
             edit_series_action = QAction("Modifier la série", self)
@@ -1004,6 +1024,7 @@ class MainWindow(QMainWindow):
             ]
 
         entries: list[LibraryEntry] = []
+        movies: list[LibraryEntry] = []
         series_groups: dict[str, list[MediaItem]] = {}
         series_titles: dict[str, str] = {}
         for item in self.items:
@@ -1012,13 +1033,22 @@ class MainWindow(QMainWindow):
                 series_groups.setdefault(key, []).append(item)
                 series_titles.setdefault(key, item.title)
             else:
-                entries.append(LibraryEntry("movie", item.title, [item]))
+                movies.append(LibraryEntry("movie", item.title, [item]))
 
+        series_entries: list[LibraryEntry] = []
         for key, group_items in series_groups.items():
             group_items.sort(key=episode_sort_key)
-            entries.append(LibraryEntry("series", series_titles[key], group_items))
+            series_entries.append(LibraryEntry("series", series_titles[key], group_items))
 
-        return sorted(entries, key=lambda entry: entry.title.casefold())
+        movies.sort(key=lambda entry: entry.title.casefold())
+        series_entries.sort(key=lambda entry: entry.title.casefold())
+        if movies:
+            entries.append(LibraryEntry("header", "Films", []))
+            entries.extend(movies)
+        if series_entries:
+            entries.append(LibraryEntry("header", "Séries", []))
+            entries.extend(series_entries)
+        return entries
 
     def _series_items(self, title: str) -> list[MediaItem]:
         key = series_key(title)
@@ -1524,7 +1554,7 @@ def build_help_html() -> str:
         <li><b>Choisir dossier</b> sélectionne le dossier racine de la médiathèque.</li>
         <li><b>Actualiser</b> scanne les vidéos, ajoute les nouveaux fichiers et retire ceux qui n'existent plus.</li>
         <li><b>Mettre à jour les fiches</b> enrichit les médias avec TMDb et/ou OMDb selon les sources cochées.</li>
-        <li><b>Gérer les catégories</b> permet de forcer un dossier en Auto, Film, Série ou Ignorer.</li>
+        <li><b>Gérer les catégories</b> permet de forcer un dossier en Auto, Film unique, Dossier de films, Série, Dossier de séries ou Ignorer.</li>
     </ul>
 
     <h2>Films, séries et corrections manuelles</h2>
@@ -1535,8 +1565,10 @@ def build_help_html() -> str:
     </p>
     <ul>
         <li><b>Auto</b> laisse Popcornana décider.</li>
-        <li><b>Film</b> force les vidéos du dossier à rester des films.</li>
-        <li><b>Série</b> regroupe les vidéos sous le nom du dossier.</li>
+        <li><b>Film unique</b> force les vidéos du dossier à utiliser le nom du dossier comme titre du film.</li>
+        <li><b>Dossier de films</b> garde chaque vidéo comme film indépendant.</li>
+        <li><b>Série</b> regroupe les vidéos sous le nom du dossier choisi.</li>
+        <li><b>Dossier de séries</b> regroupe les saisons et sous-dossiers d'une même série.</li>
         <li><b>Ignorer</b> exclut le dossier de la médiathèque.</li>
     </ul>
     <p>
@@ -1562,7 +1594,7 @@ def build_help_html() -> str:
     <h2>Conseils pratiques</h2>
     <ul>
         <li>Pour les séries, privilégiez des noms contenant saison et épisode, par exemple <code>S02E05</code>.</li>
-        <li>Pour les sagas de films, forcez le dossier en <b>Film</b> si la détection hésite.</li>
+        <li>Pour les sagas ou dossiers de réalisateurs, forcez le dossier en <b>Dossier de films</b> si la détection hésite.</li>
         <li>Pour les bonus, making-of ou fichiers temporaires, utilisez <b>Ignorer</b>.</li>
         <li>Une fiche modifiée manuellement est protégée contre les enrichissements automatiques suivants.</li>
     </ul>

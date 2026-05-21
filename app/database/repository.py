@@ -104,7 +104,7 @@ class MediaRepository:
                 (folder_path, category),
             )
 
-    def upsert_media(self, item: MediaItem) -> None:
+    def upsert_media(self, item: MediaItem, force_identity: bool = False) -> None:
         with self._connect() as connection:
             connection.execute(
                 """
@@ -191,6 +191,26 @@ class MediaRepository:
                     datetime.now(timezone.utc).isoformat(),
                 ),
             )
+            if force_identity:
+                force_title = item.category_override in {"movie", "tv", "series_folder"}
+                connection.execute(
+                    """
+                    UPDATE media
+                    SET media_type = ?,
+                        title = CASE WHEN ? THEN ? ELSE title END,
+                        season = ?,
+                        episode = ?
+                    WHERE filepath = ?
+                    """,
+                    (
+                        item.media_type,
+                        1 if force_title else 0,
+                        item.title,
+                        item.season,
+                        item.episode,
+                        str(item.filepath),
+                    ),
+                )
 
     def list_media(self) -> list[MediaItem]:
         with self._connect() as connection:
