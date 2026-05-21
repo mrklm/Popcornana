@@ -15,7 +15,7 @@ from PIL import Image
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DIST_DIR = ROOT_DIR / "dist"
 BUILD_DIR = ROOT_DIR / "build"
-ICON_SOURCE = ROOT_DIR / "assets" / "popcornana_ico.png"
+ICON_SOURCE = ROOT_DIR / "assets" / "popcornana.png"
 MACOS_ICON_SOURCE = ROOT_DIR / "assets" / "popcornana.icns"
 ICON_DIR = BUILD_DIR / "icons"
 

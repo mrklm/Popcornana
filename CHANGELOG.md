@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.22] - 2026-05-21
+
+- Utilisation de l'image `popcornana.png` pour l'icône de fenêtre, l'écran de démarrage et les icônes générées.
+
 ## [1.0.21] - 2026-05-21
 
 - Mise à jour des images Popcornana et de l'icône macOS.

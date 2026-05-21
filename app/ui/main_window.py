@@ -48,7 +48,7 @@ from app.version import APP_VERSION
 
 ASSETS_DIR = resource_path("assets")
 LOGO_PATH = ASSETS_DIR / "popcornana.png"
-STARTUP_IMAGE_PATH = ASSETS_DIR / "popcornana_ico.png"
+STARTUP_IMAGE_PATH = LOGO_PATH
 APP_ICON_PATH = STARTUP_IMAGE_PATH
 CATEGORY_LABELS = {
     "auto": "Auto",
