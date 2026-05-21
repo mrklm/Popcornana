@@ -150,6 +150,7 @@ class MainWindow(QMainWindow):
         self.omdb = OmdbClient()
         self.items: list[MediaItem] = []
         self.folder_categories: dict[str, str] = {}
+        self.folder_posters: dict[str, str] = {}
         self.current_item: MediaItem | None = None
         self.entries: list[LibraryEntry] = []
         self.current_entry: LibraryEntry | None = None
@@ -872,6 +873,7 @@ class MainWindow(QMainWindow):
     def refresh_library(self) -> None:
         self.items = self.repository.list_media()
         self.folder_categories = self.repository.list_folder_categories()
+        self.folder_posters = self.repository.list_folder_posters()
         if self.current_series_title and not self._series_items(self.current_series_title):
             self.current_series_title = None
         if self.current_movie_folder_path and not self._movie_folder_items(self.current_movie_folder_path):
@@ -992,6 +994,9 @@ class MainWindow(QMainWindow):
             open_folder_action = QAction("Ouvrir le dossier de films", self)
             open_folder_action.triggered.connect(lambda: self.open_movie_folder(entry))
             menu.addAction(open_folder_action)
+            poster_action = QAction("Choisir un visuel", self)
+            poster_action.triggered.connect(lambda: self.choose_movie_folder_poster(entry))
+            menu.addAction(poster_action)
             menu.exec(self.grid.mapToGlobal(position))
             return
         if entry.kind == "series":
@@ -1028,6 +1033,23 @@ class MainWindow(QMainWindow):
         self.current_movie_folder_path = entry.folder_path
         self.current_series_title = None
         self.refresh_library()
+
+    def choose_movie_folder_poster(self, entry: LibraryEntry) -> None:
+        if not entry.folder_path:
+            return
+        filename, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            "Choisir un visuel de dossier",
+            "",
+            "Images (*.png *.jpg *.jpeg *.webp)",
+        )
+        if not filename:
+            return
+        saved_poster = save_manual_poster(Path(filename))
+        poster_path = str(saved_poster.relative_to(POSTERS_DIR))
+        self.repository.set_folder_poster(entry.folder_path, poster_path)
+        self.refresh_library()
+        self.statusBar().showMessage("Visuel du dossier de films enregistré.")
 
     def close_library_folder(self) -> None:
         self.current_series_title = None
@@ -1078,7 +1100,7 @@ class MainWindow(QMainWindow):
         self.path_label.setText(entry.folder_path or "")
         self.play_button.setText("Ouvrir le dossier")
         self.play_button.setEnabled(True)
-        self._set_detail_poster(reference_item)
+        self._set_detail_poster_for_movie_folder(entry, reference_item)
 
     def _visible_entries(self) -> list[LibraryEntry]:
         if self.current_series_title:
@@ -1191,6 +1213,11 @@ class MainWindow(QMainWindow):
         return label
 
     def _icon_for_entry(self, entry: LibraryEntry) -> QIcon:
+        if entry.kind == "movie_folder":
+            poster_path = self.folder_posters.get(entry.folder_path or "")
+            poster = local_poster_path(poster_path)
+            if poster and poster.exists():
+                return QIcon(str(poster))
         return self._icon_for_item(entry.items[0])
 
     def _icon_for_item(self, item: MediaItem) -> QIcon:
@@ -1210,6 +1237,16 @@ class MainWindow(QMainWindow):
         pixmap = QPixmap(str(poster)).scaled(self.poster_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.poster_label.setText("")
         self.poster_label.setPixmap(pixmap)
+
+    def _set_detail_poster_for_movie_folder(self, entry: LibraryEntry, fallback_item: MediaItem) -> None:
+        poster_path = self.folder_posters.get(entry.folder_path or "")
+        poster = local_poster_path(poster_path)
+        if poster and poster.exists():
+            pixmap = QPixmap(str(poster)).scaled(self.poster_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.poster_label.setText("")
+            self.poster_label.setPixmap(pixmap)
+            return
+        self._set_detail_poster(fallback_item)
 
 
 class StartupDialog(QDialog):
