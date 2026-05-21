@@ -1912,6 +1912,7 @@ def build_help_html() -> str:
         <li><b>Actualiser</b> scanne les vidéos, ajoute les nouveaux fichiers et retire ceux qui n'existent plus.</li>
         <li><b>Mettre à jour les fiches</b> enrichit les médias avec TMDb et/ou OMDb selon les sources cochées.</li>
         <li><b>Gérer les catégories</b> permet de forcer un dossier en Auto, Film unique, Dossier de films, Série, Dossier de séries ou Ignorer.</li>
+        <li>Dans l'onglet Général, cliquez sur le panneau détail à droite pour ouvrir le zoom fiche avec texte agrandi.</li>
     </ul>
 
     <h2>Films, séries et corrections manuelles</h2>
@@ -1932,6 +1933,7 @@ def build_help_html() -> str:
         Un clic droit sur une fiche permet de lancer une recherche TMDb/OMDb ou une édition manuelle.
         Un clic droit sur une série permet de modifier les métadonnées communes de la série :
         affiche, résumé général, réalisateur et année. Les titres des épisodes ne sont pas modifiés.
+        Un clic droit sur un dossier de films permet de l'ouvrir ou de choisir son visuel sans toucher aux films contenus.
     </p>
 
     <h2>Clés API</h2>
@@ -1952,6 +1954,7 @@ def build_help_html() -> str:
     <ul>
         <li>Pour les séries, privilégiez des noms contenant saison et épisode, par exemple <code>S02E05</code>.</li>
         <li>Pour les sagas ou dossiers de réalisateurs, forcez le dossier en <b>Dossier de films</b> si la détection hésite.</li>
+        <li>Pour personnaliser un dossier de films, utilisez <b>Choisir un visuel</b> plutôt qu'une recherche de métadonnées.</li>
         <li>Pour les bonus, making-of ou fichiers temporaires, utilisez <b>Ignorer</b>.</li>
         <li>Une fiche modifiée manuellement est protégée contre les enrichissements automatiques suivants.</li>
     </ul>
@@ -1966,8 +1969,9 @@ def build_help_html() -> str:
         <li><b>Scan</b> : le scanner parcourt récursivement le dossier racine et filtre les extensions vidéo connues.</li>
         <li><b>Parsing</b> : les noms de fichiers sont nettoyés, puis comparés à des motifs d'épisodes et d'années.</li>
         <li><b>Catégories</b> : les règles par dossier sont stockées en SQLite. La règle la plus proche du fichier gagne.</li>
+        <li><b>Dossiers de films</b> : le regroupement est visuel. Les films restent indépendants en base, tandis que le visuel du dossier est stocké séparément.</li>
         <li><b>Enrichissement</b> : TMDb et OMDb renvoient des résultats scorés. Le titre et l'année aident à choisir le meilleur candidat.</li>
-        <li><b>Images</b> : les affiches téléchargées ou choisies manuellement sont mises en cache dans le dossier de données.</li>
+        <li><b>Images</b> : les affiches téléchargées, choisies manuellement ou associées aux dossiers sont mises en cache dans le dossier de données.</li>
         <li><b>Verrouillage</b> : une édition manuelle active un verrou pour éviter qu'un futur enrichissement automatique écrase la fiche.</li>
         <li><b>Build</b> : les releases sont générées avec PyInstaller. Les artefacts Linux incluent aussi une AppImage.</li>
     </ul>
