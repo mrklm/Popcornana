@@ -26,6 +26,11 @@ def scan_videos(folder: str | Path, category_overrides: dict[str, str] | None = 
         media_type = str(parsed["media_type"])
         if category == "movie":
             media_type = "movie"
+            title = clean_title(category_folder.name) if category_folder else title
+            season = None
+            episode = None
+        elif category == "movie_folder":
+            media_type = "movie"
             season = None
             episode = None
         elif category == "tv":

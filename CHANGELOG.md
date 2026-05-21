@@ -4,6 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.23] - 2026-05-21
+
+- Ajout de la catégorie `Dossier de films` pour les répertoires contenant plusieurs films indépendants.
+- Renommage de la catégorie `Film` en `Film unique` dans la gestion des catégories.
+
 ## [1.0.22] - 2026-05-21
 
 - Utilisation de l'image `popcornana.png` pour l'icône de fenêtre, l'écran de démarrage et les icônes générées.
