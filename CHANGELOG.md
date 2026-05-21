@@ -4,6 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.16] - 2026-05-21
+
+- Ajout d'une gestion manuelle des catégories de dossiers de médiathèque.
+- Possibilité de forcer un dossier en `Auto`, `Film`, `Série` ou `Ignorer`.
+
 ## [1.0.15] - 2026-05-21
 
 - Ajout du réalisateur aux métadonnées affichées, enrichies et éditables.
