@@ -23,7 +23,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m pip install -r requirements-build-macos-catalina.txt
 python main.py
-python -m PyInstaller --windowed --name Popcornana --icon assets/popcornana.icns --add-data "assets:assets" --collect-all PySide6 main.py
+python -m PyInstaller --windowed --name Popcornana --icon assets/popcornana.icns --add-data "assets:assets" --add-data "VERSION:." --collect-all PySide6 main.py
 ```
 
 Artefact attendu:
