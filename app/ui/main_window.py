@@ -1387,7 +1387,7 @@ class FullscreenEntryDialog(QDialog):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(48, 34, 48, 34)
-        layout.setSpacing(14)
+        layout.setSpacing(16)
 
         poster_label = QLabel()
         poster_label.setObjectName("fullscreenPoster")
@@ -1400,19 +1400,21 @@ class FullscreenEntryDialog(QDialog):
         else:
             poster_label.setText("Aucune affiche")
         layout.addWidget(poster_label, alignment=Qt.AlignHCenter)
+        layout.addSpacing(8)
 
-        title_label = QLabel(entry.title)
+        title_label = QLabel(wrap_long_title(entry.title))
         title_label.setObjectName("fullscreenTitle")
         title_label.setWordWrap(True)
         title_label.setAlignment(Qt.AlignLeft)
-        title_label.setFixedWidth(text_width)
+        title_label.setFixedWidth(text_width - 18)
         title_scroll = QScrollArea()
         title_scroll.setObjectName("fullscreenTitleScroll")
         title_scroll.setFrameShape(QScrollArea.NoFrame)
+        title_scroll.setWidgetResizable(True)
         title_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         title_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         title_scroll.setFixedWidth(text_width)
-        title_scroll.setFixedHeight(110)
+        title_scroll.setFixedHeight(122)
         title_scroll.setWidget(title_label)
         layout.addWidget(title_scroll, alignment=Qt.AlignHCenter)
 
@@ -1453,7 +1455,7 @@ class FullscreenEntryDialog(QDialog):
 
         self.apply_theme()
         self._apply_reading_fonts(title_label, meta_label, overview_label, return_button, watch_button)
-        self._fit_wrapped_label(title_label, text_width)
+        self._fit_wrapped_label(title_label, text_width - 18)
         self._fit_wrapped_label(meta_label, text_width)
 
     def showEvent(self, event) -> None:
@@ -1840,6 +1842,23 @@ def local_poster_path(poster_path: str | None) -> Path | None:
     if path.is_absolute():
         return path
     return POSTERS_DIR / poster_path.lstrip("/")
+
+
+def wrap_long_title(title: str, max_token_length: int = 22) -> str:
+    wrapped_lines: list[str] = []
+    for line in title.splitlines() or [""]:
+        wrapped_tokens: list[str] = []
+        for token in line.split(" "):
+            if len(token) <= max_token_length:
+                wrapped_tokens.append(token)
+                continue
+            chunks = [
+                token[index:index + max_token_length]
+                for index in range(0, len(token), max_token_length)
+            ]
+            wrapped_tokens.append("\n".join(chunks))
+        wrapped_lines.append(" ".join(wrapped_tokens))
+    return "\n".join(wrapped_lines)
 
 
 def discover_video_directories(root: Path) -> list[tuple[str, int]]:

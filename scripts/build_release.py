@@ -80,6 +80,8 @@ def run_pyinstaller(target: str, icon_path: Path) -> None:
         "--add-data",
         add_data_arg("assets", "assets"),
         "--add-data",
+        add_data_arg("VERSION", "."),
+        "--add-data",
         add_data_arg(".env.example", "."),
         "main.py",
     ]
