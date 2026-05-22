@@ -178,6 +178,8 @@ class MainWindow(QMainWindow):
         self.grid.setObjectName("libraryGrid")
         self.grid.setViewMode(QListWidget.IconMode)
         self.grid.setIconSize(QSize(144, 216))
+        self.grid.setFlow(QListWidget.LeftToRight)
+        self.grid.setWrapping(True)
         self.grid.setResizeMode(QListWidget.Adjust)
         self.grid.setMovement(QListWidget.Static)
         self.grid.setSpacing(14)
@@ -903,6 +905,8 @@ class MainWindow(QMainWindow):
                 list_item.setData(Qt.UserRole, index)
                 list_item.setSizeHint(QSize(184, 318))
             self.grid.addItem(list_item)
+        self.grid.doItemsLayout()
+        self.grid.updateGeometries()
         if self.entries:
             first_media_row = next((row for row, entry in enumerate(self.entries) if entry.kind != "header"), 0)
             self.grid.setCurrentRow(first_media_row)

@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.49] - 2026-05-23
+
+- Linux: stabilisation du placement des vignettes de la médiathèque après actualisation en forçant le flux gauche-droite et un relayout explicite de la grille.
+
 ## [1.0.48] - 2026-05-23
 
 - Linux: le scan ignore désormais les fichiers artefacts `._*`, `.DS_Store` et `Thumbs.db` pour éviter les doublons fantômes dans la médiathèque.
