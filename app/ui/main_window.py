@@ -164,6 +164,14 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._load_saved_state()
 
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        QTimer.singleShot(0, self._refresh_grid_layout)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._refresh_grid_layout()
+
     def _build_ui(self) -> None:
         page = QWidget()
         page.setObjectName("page")
@@ -896,8 +904,7 @@ class MainWindow(QMainWindow):
                 header_font.setBold(True)
                 list_item.setFont(header_font)
                 list_item.setFlags(Qt.NoItemFlags)
-                header_width = max(560, self.grid.viewport().width() - 32)
-                list_item.setSizeHint(QSize(header_width, 104))
+                list_item.setSizeHint(QSize(self._header_item_width(), 104))
                 list_item.setData(Qt.UserRole, None)
             else:
                 list_item = QListWidgetItem(self._icon_for_entry(entry), self._label_for_entry(entry))
@@ -905,13 +912,29 @@ class MainWindow(QMainWindow):
                 list_item.setData(Qt.UserRole, index)
                 list_item.setSizeHint(QSize(184, 318))
             self.grid.addItem(list_item)
-        self.grid.doItemsLayout()
-        self.grid.updateGeometries()
+        self._refresh_grid_layout()
         if self.entries:
             first_media_row = next((row for row, entry in enumerate(self.entries) if entry.kind != "header"), 0)
             self.grid.setCurrentRow(first_media_row)
         else:
             self._show_empty_details()
+
+    def _header_item_width(self) -> int:
+        return max(560, self.grid.viewport().width() - 32)
+
+    def _refresh_grid_layout(self) -> None:
+        if not hasattr(self, "grid"):
+            return
+        header_width = self._header_item_width()
+        for row, entry in enumerate(getattr(self, "entries", [])):
+            if entry.kind != "header":
+                continue
+            item = self.grid.item(row)
+            if item is not None:
+                item.setSizeHint(QSize(header_width, 104))
+        self.grid.doItemsLayout()
+        self.grid.updateGeometries()
+        self.grid.viewport().update()
 
     def show_media_count_status(self) -> None:
         self.statusBar().showMessage(f"{len(self.items)} média(s) trouvé(s).")

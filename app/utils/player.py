@@ -46,4 +46,18 @@ def find_vlc() -> str | None:
         macos_vlc = Path("/Applications/VLC.app/Contents/MacOS/VLC")
         if macos_vlc.exists():
             return str(macos_vlc)
+    if os.name == "nt":
+        for candidate in windows_vlc_candidates():
+            if candidate.exists():
+                return str(candidate)
     return shutil.which("vlc") or shutil.which("VLC")
+
+
+def windows_vlc_candidates() -> list[Path]:
+    candidates: list[Path] = []
+    for env_var in ("ProgramW6432", "PROGRAMFILES", "PROGRAMFILES(X86)"):
+        base_dir = os.getenv(env_var)
+        if not base_dir:
+            continue
+        candidates.append(Path(base_dir) / "VideoLAN" / "VLC" / "vlc.exe")
+    return candidates

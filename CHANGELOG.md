@@ -4,6 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.50] - 2026-05-23
+
+- Linux: correction du placement initial des vignettes de la médiathèque en recalculant la grille à l'ouverture et au redimensionnement de la fenêtre.
+- Windows: amélioration de la détection de VLC en recherchant aussi `vlc.exe` dans les dossiers d'installation classiques afin de fiabiliser le lancement en plein écran.
+
 ## [1.0.49] - 2026-05-23
 
 - Linux: stabilisation du placement des vignettes de la médiathèque après actualisation en forçant le flux gauche-droite et un relayout explicite de la grille.
