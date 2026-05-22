@@ -1391,11 +1391,11 @@ class FullscreenEntryDialog(QDialog):
 
         poster_label = QLabel()
         poster_label.setObjectName("fullscreenPoster")
-        poster_label.setFixedSize(216, 324)
+        poster_label.setFixedSize(126, 189)
         poster_label.setAlignment(Qt.AlignCenter)
         poster = local_poster_path(entry.items[0].poster_path if entry.items else None)
         if poster and poster.exists():
-            pixmap = QPixmap(str(poster)).scaled(216, 324, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pixmap = QPixmap(str(poster)).scaled(126, 189, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             poster_label.setPixmap(pixmap)
         else:
             poster_label.setText("Aucune affiche")
