@@ -1406,7 +1406,15 @@ class FullscreenEntryDialog(QDialog):
         title_label.setWordWrap(True)
         title_label.setAlignment(Qt.AlignLeft)
         title_label.setFixedWidth(text_width)
-        layout.addWidget(title_label, alignment=Qt.AlignHCenter)
+        title_scroll = QScrollArea()
+        title_scroll.setObjectName("fullscreenTitleScroll")
+        title_scroll.setFrameShape(QScrollArea.NoFrame)
+        title_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        title_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        title_scroll.setFixedWidth(text_width)
+        title_scroll.setFixedHeight(110)
+        title_scroll.setWidget(title_label)
+        layout.addWidget(title_scroll, alignment=Qt.AlignHCenter)
 
         meta_label = QLabel(fullscreen_meta_text(entry))
         meta_label.setObjectName("fullscreenMeta")
@@ -1518,6 +1526,10 @@ class FullscreenEntryDialog(QDialog):
                 color: {self.theme["FG"]};
                 font-size: 35px;
                 font-weight: 800;
+            }}
+            QScrollArea#fullscreenTitleScroll {{
+                background: transparent;
+                border: none;
             }}
             QLabel#fullscreenMeta {{
                 color: {self.theme["ACCENT"]};
