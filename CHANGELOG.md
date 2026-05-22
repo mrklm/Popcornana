@@ -4,6 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.48] - 2026-05-23
+
+- Linux: le scan ignore désormais les fichiers artefacts `._*`, `.DS_Store` et `Thumbs.db` pour éviter les doublons fantômes dans la médiathèque.
+- Le rafraîchissement nettoie aussi les anciennes entrées parasites déjà présentes dans la base locale.
+
 ## [1.0.47] - 2026-05-22
 
 - Conservation des boutons de fenêtre natifs sous Windows et Linux en ouvrant l'application maximisée plutôt qu'en plein écran exclusif.

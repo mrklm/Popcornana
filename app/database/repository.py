@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.models.media import MediaItem
+from app.scanner.name_cleaner import is_ignored_media_artifact
 from app.utils.paths import DATABASE_PATH
 
 
@@ -255,6 +256,16 @@ class MediaRepository:
         with self._connect() as connection:
             connection.executemany("DELETE FROM media WHERE filepath = ?", [(path,) for path in missing_paths])
         return len(missing_paths)
+
+    def delete_ignored_media(self) -> int:
+        items = self.list_media()
+        ignored_paths = [str(item.filepath) for item in items if is_ignored_media_artifact(item.filepath)]
+        if not ignored_paths:
+            return 0
+
+        with self._connect() as connection:
+            connection.executemany("DELETE FROM media WHERE filepath = ?", [(path,) for path in ignored_paths])
+        return len(ignored_paths)
 
     def delete_media_not_in_scan(self, root: Path, scanned_paths: set[str]) -> int:
         items = self.list_media()

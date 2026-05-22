@@ -598,6 +598,7 @@ class MainWindow(QMainWindow):
             self.repository.upsert_media(item, force_identity=item.category_forced)
         scanned_paths = {str(item.filepath) for item in scanned}
         removed = self.repository.delete_missing_media()
+        removed += self.repository.delete_ignored_media()
         removed += self.repository.delete_media_not_in_scan(root, scanned_paths)
         after_paths = {str(item.filepath) for item in self.repository.list_media()}
         added = len(after_paths - before_paths)
