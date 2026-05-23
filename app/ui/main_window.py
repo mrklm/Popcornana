@@ -1404,7 +1404,7 @@ class FullscreenEntryDialog(QDialog):
         screen_width = screen_geometry.width() if screen_geometry else 1280
         screen_height = screen_geometry.height() if screen_geometry else 800
         window_width = max(736, int(screen_width * 0.575))
-        window_height = max(560, int(screen_height * 0.8))
+        window_height = max(672, int(screen_height * 0.96))
         text_width = max(520, window_width - 96)
         self.resize(window_width, window_height)
         self._center_on_screen()
@@ -1471,10 +1471,10 @@ class FullscreenEntryDialog(QDialog):
         button_row.setContentsMargins(0, 0, 0, 0)
         button_row.setSpacing(16)
         return_button = QPushButton("Retour à la liste")
-        return_button.setMinimumHeight(78)
+        return_button.setMinimumHeight(39)
         return_button.clicked.connect(self.accept)
         watch_button = QPushButton("Visionner")
-        watch_button.setMinimumHeight(78)
+        watch_button.setMinimumHeight(39)
         watch_button.setEnabled(bool(entry.items))
         watch_button.clicked.connect(self.watch_entry)
         button_row.addWidget(return_button, stretch=1)
@@ -1597,8 +1597,8 @@ class FullscreenEntryDialog(QDialog):
                 color: {self.theme["FIELD_FG"]};
                 border: 1px solid {self.theme["ACCENT"]};
                 border-radius: 6px;
-                padding: 20px 34px;
-                min-height: 58px;
+                padding: 10px 34px;
+                min-height: 29px;
                 font-size: 22px;
                 font-weight: 700;
             }}
