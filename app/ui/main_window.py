@@ -1410,7 +1410,8 @@ class FullscreenEntryDialog(QDialog):
         title_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         title_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         title_scroll.setFixedWidth(text_width)
-        title_scroll.setFixedHeight(122)
+        title_scroll.setMinimumHeight(58)
+        title_scroll.setMaximumHeight(122)
         title_scroll.setWidget(title_label)
         layout.addWidget(title_scroll, alignment=Qt.AlignHCenter)
 
@@ -1453,7 +1454,7 @@ class FullscreenEntryDialog(QDialog):
 
         self.apply_theme()
         self._apply_reading_fonts(title_label, meta_label, overview_label, return_button, watch_button)
-        self._fit_wrapped_label(title_label, text_width - 18)
+        self._fit_scroll_label(title_scroll, title_label, text_width - 18, 58, 122)
         self._fit_wrapped_label(meta_label, text_width)
 
     def showEvent(self, event) -> None:
@@ -1481,6 +1482,23 @@ class FullscreenEntryDialog(QDialog):
             label.text(),
         )
         label.setMinimumHeight(bounds.height() + 10)
+
+    def _fit_scroll_label(
+        self,
+        scroll_area: QScrollArea,
+        label: QLabel,
+        width: int,
+        minimum_height: int,
+        maximum_height: int,
+    ) -> None:
+        bounds = label.fontMetrics().boundingRect(
+            QRect(0, 0, width, 2000),
+            Qt.TextWordWrap | Qt.AlignLeft,
+            label.text(),
+        )
+        content_height = bounds.height() + 12
+        label.setMinimumHeight(content_height)
+        scroll_area.setFixedHeight(max(minimum_height, min(content_height, maximum_height)))
 
     def _apply_reading_fonts(
         self,

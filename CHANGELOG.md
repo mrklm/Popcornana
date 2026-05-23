@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.50] - 2026-05-23
+
+- Réduction de l'espace vide entre le titre et les informations dans le zoom fiche.
+
 ## [1.0.49] - 2026-05-23
 
 - Extension des boutons du zoom fiche sur toute la largeur disponible pour rendre les actions plus visibles.
