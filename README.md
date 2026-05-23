@@ -47,8 +47,9 @@ Un clic droit sur un film ou un épisode permet de lancer une recherche TMDb, un
 
 Regroupe les actions et réglages:
 
-- `Choisir dossier`: définit le dossier à scanner.
-- `Actualiser`: analyse le dossier choisi, ajoute les vidéos détectées et retire les entrées dont le fichier n'existe plus.
+- `Ajouter dossier`: ajoute une source à la médiathèque sans remplacer les autres.
+- `Gérer les sources`: affiche les sources connues et permet de retirer celles qui ne doivent plus être suivies.
+- `Actualiser`: analyse les sources disponibles, ajoute les vidéos détectées et retire les entrées dont le fichier n'existe plus dans ces sources.
 - `Mettre à jour les fiches`: récupère les métadonnées avec les sources sélectionnées et affiche une fenêtre de progression.
 - `Gérer les catégories`: force un dossier en Auto, Film unique, Dossier de films, Série, Dossier de séries ou Ignorer.
 - `Options avancées`: permet de choisir OMDb, TMDb ou les deux et d'enregistrer les clés API.
