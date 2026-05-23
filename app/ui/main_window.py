@@ -131,6 +131,9 @@ THEMES = {
     ),
 }
 DEFAULT_THEME = "[Sombre] Midnight Garage"
+PORTABLE_INFO_FILENAME = "Popinfo.txt"
+PORTABLE_COVER_STEM = "cover"
+PORTABLE_COVER_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 @dataclass
@@ -701,6 +704,7 @@ class MainWindow(QMainWindow):
             return
 
         updated = 0
+        portable_files_created = 0
         skipped_locked = 0
         skipped_complete = 0
         cancelled = False
@@ -718,9 +722,11 @@ class MainWindow(QMainWindow):
                 cancelled = True
                 break
             if item.metadata_locked:
+                portable_files_created += create_portable_metadata_files(item)
                 skipped_locked += 1
                 continue
             if not needs_metadata_update(item):
+                portable_files_created += create_portable_metadata_files(item)
                 skipped_complete += 1
                 continue
             before = media_signature(item)
@@ -738,6 +744,7 @@ class MainWindow(QMainWindow):
                 if media_signature(enriched) != before:
                     self.repository.upsert_media(enriched)
                     updated += 1
+                    portable_files_created += create_portable_metadata_files(enriched)
             except Exception as exc:
                 self.statusBar().showMessage(f"Erreur métadonnées pour {item.title}: {exc}")
 
@@ -755,6 +762,8 @@ class MainWindow(QMainWindow):
             message += f" {skipped_complete} fiche(s) déjà complétée(s) ignorée(s)."
         if skipped_locked:
             message += f" {skipped_locked} média(s) verrouillé(s) ignoré(s)."
+        if portable_files_created:
+            message += f" {portable_files_created} fichier(s) portable(s) créé(s)."
         self.statusBar().showMessage(message)
 
     def enrich_library(self) -> None:
@@ -773,6 +782,7 @@ class MainWindow(QMainWindow):
                 if enriched.poster_path:
                     self.tmdb.download_poster(enriched.poster_path)
                 self.repository.upsert_media(enriched)
+                create_portable_metadata_files(enriched)
                 if enriched.tmdb_id:
                     updated += 1
             except Exception as exc:
@@ -811,6 +821,7 @@ class MainWindow(QMainWindow):
                 )
                 if after != before:
                     self.repository.upsert_media(enriched)
+                    create_portable_metadata_files(enriched)
                     updated += 1
             except Exception as exc:
                 self.statusBar().showMessage(f"Erreur OMDb pour {item.title}: {exc}")
@@ -838,6 +849,7 @@ class MainWindow(QMainWindow):
             if item.poster_path:
                 self.tmdb.download_poster(item.poster_path)
             self.repository.upsert_media(item)
+            create_portable_metadata_files(item)
             self.refresh_library()
 
     def search_omdb_current(self) -> None:
@@ -865,6 +877,7 @@ class MainWindow(QMainWindow):
                 item.poster_path = previous_poster
             item.metadata_locked = True
             self.repository.upsert_media(item)
+            create_portable_metadata_files(item)
             self.refresh_library()
 
     def edit_metadata_current(self) -> None:
@@ -883,6 +896,7 @@ class MainWindow(QMainWindow):
             saved_poster = save_manual_poster(dialog.poster_path)
             item.poster_path = str(saved_poster.relative_to(POSTERS_DIR))
         self.repository.upsert_media(item)
+        create_portable_metadata_files(item)
         self.refresh_library()
 
     def edit_series_current(self) -> None:
@@ -1956,10 +1970,88 @@ class ManualMetadataDialog(QDialog):
 def local_poster_path(poster_path: str | None) -> Path | None:
     if not poster_path:
         return None
+    if poster_path.startswith(("http://", "https://")):
+        return None
     path = Path(poster_path)
     if path.is_absolute():
         return path
     return POSTERS_DIR / poster_path.lstrip("/")
+
+
+def create_portable_metadata_files(item: MediaItem) -> int:
+    if not item.filepath.exists() or not has_portable_metadata(item):
+        return 0
+
+    created = 0
+    folder = item.filepath.parent
+    info_path = folder / PORTABLE_INFO_FILENAME
+    if not info_path.exists():
+        info_path.write_text(portable_info_text(item), encoding="utf-8")
+        created += 1
+
+    if not existing_portable_cover(folder):
+        poster = local_poster_path(item.poster_path)
+        if poster and poster.exists():
+            suffix = poster.suffix.lower()
+            if suffix not in PORTABLE_COVER_EXTENSIONS:
+                suffix = ".jpg"
+            shutil.copy2(poster, folder / f"{PORTABLE_COVER_STEM}{suffix}")
+            created += 1
+    return created
+
+
+def has_portable_metadata(item: MediaItem) -> bool:
+    useful_fields = (
+        item.original_title,
+        item.year,
+        item.overview,
+        item.genres,
+        item.director,
+        item.vote_average,
+        item.poster_path,
+        item.tmdb_id,
+    )
+    return any(useful_fields)
+
+
+def existing_portable_cover(folder: Path) -> Path | None:
+    if not folder.exists():
+        return None
+    for candidate in folder.iterdir():
+        if (
+            candidate.is_file()
+            and candidate.stem.casefold() == PORTABLE_COVER_STEM
+            and candidate.suffix.lower() in PORTABLE_COVER_EXTENSIONS
+        ):
+            return candidate
+    return None
+
+
+def portable_info_text(item: MediaItem) -> str:
+    lines = [
+        f"title: {item.title}",
+        f"media_type: {item.media_type}",
+    ]
+    if item.original_title and item.original_title != item.title:
+        lines.append(f"original_title: {item.original_title}")
+    if item.year:
+        lines.append(f"year: {item.year}")
+    if item.director:
+        lines.append(f"director: {item.director}")
+    if item.genres:
+        lines.append(f"genres: {item.genres}")
+    if item.vote_average:
+        lines.append(f"vote_average: {item.vote_average:.1f}")
+    if item.tmdb_id:
+        lines.append(f"tmdb_id: {item.tmdb_id}")
+        lines.append("source: tmdb")
+    if item.season and item.episode:
+        lines.append(f"season: {item.season}")
+        lines.append(f"episode: {item.episode}")
+    lines.append(f"file: {item.filepath.name}")
+    if item.overview:
+        lines.extend(["", "synopsis:", item.overview])
+    return "\n".join(lines).strip() + "\n"
 
 
 def wrap_long_title(title: str, max_token_length: int = 22) -> str:
@@ -2090,6 +2182,7 @@ def build_help_html() -> str:
         <li><b>Gérer les sources</b> affiche les sources connues et permet de retirer celles qui ne doivent plus être suivies.</li>
         <li><b>Actualiser</b> scanne les sources disponibles, ajoute les nouveaux fichiers et retire ceux qui n'existent plus dans ces sources.</li>
         <li><b>Mettre à jour les fiches</b> enrichit les médias avec TMDb et/ou OMDb selon les sources cochées.</li>
+        <li>Quand une fiche est enrichie, Popcornana crée <b>cover.*</b> et <b>Popinfo.txt</b> dans le dossier du film si ces fichiers n'existent pas déjà.</li>
         <li><b>Gérer les catégories</b> permet de forcer un dossier en Auto, Film unique, Dossier de films, Série, Dossier de séries ou Ignorer.</li>
         <li>Dans l'onglet Général, cliquez sur le panneau détail à droite pour ouvrir le zoom fiche avec texte agrandi.</li>
     </ul>
