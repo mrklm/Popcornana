@@ -4,6 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.48] - 2026-05-23
+
+- Suppression de la mention `MANUEL` dans les fiches tout en conservant leur protection contre les enrichissements automatiques.
+- Ouverture du choix d'affiche manuelle directement dans le dossier du film édité.
+
 ## [1.0.47] - 2026-05-23
 
 - Agrandissement des boutons du zoom fiche pour faciliter les actions `Retour à la liste` et `Visionner`.
