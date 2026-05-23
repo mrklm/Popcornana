@@ -22,6 +22,7 @@ L'application est pensée pour rester simple et locale: les fichiers vidéo rest
 - Résumés longs contenus dans des zones scrollables.
 - Enrichissement automatique via OMDb.
 - Recherches contextuelles TMDb/OMDb et édition manuelle des métadonnées depuis la grille.
+- Création de `cover.*` et `Popinfo.txt` dans le dossier du film quand une fiche est enrichie, sans écraser les fichiers existants.
 - Édition commune des métadonnées de série sans modifier les titres des épisodes.
 - Choix persistant des sources de métadonnées dans `Options avancées`.
 - Si OMDb et TMDb sont sélectionnés ensemble, TMDb est essayé en premier puis OMDb sert de secours.
