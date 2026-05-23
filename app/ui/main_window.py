@@ -1469,15 +1469,14 @@ class FullscreenEntryDialog(QDialog):
         button_row.setContentsMargins(0, 0, 0, 0)
         button_row.setSpacing(16)
         return_button = QPushButton("Retour à la liste")
-        return_button.setMinimumSize(260, 72)
+        return_button.setMinimumHeight(78)
         return_button.clicked.connect(self.accept)
         watch_button = QPushButton("Visionner")
-        watch_button.setMinimumSize(260, 72)
+        watch_button.setMinimumHeight(78)
         watch_button.setEnabled(bool(entry.items))
         watch_button.clicked.connect(self.watch_entry)
-        button_row.addWidget(return_button, alignment=Qt.AlignLeft)
-        button_row.addStretch(1)
-        button_row.addWidget(watch_button, alignment=Qt.AlignRight)
+        button_row.addWidget(return_button, stretch=1)
+        button_row.addWidget(watch_button, stretch=1)
         layout.addLayout(button_row)
 
         self.apply_theme()
@@ -1579,9 +1578,8 @@ class FullscreenEntryDialog(QDialog):
                 color: {self.theme["FIELD_FG"]};
                 border: 1px solid {self.theme["ACCENT"]};
                 border-radius: 6px;
-                padding: 18px 34px;
-                min-height: 54px;
-                min-width: 220px;
+                padding: 20px 34px;
+                min-height: 58px;
                 font-size: 22px;
                 font-weight: 700;
             }}

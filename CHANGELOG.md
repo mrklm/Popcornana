@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.53] - 2026-05-23
+
+- Extension des boutons du zoom fiche sur toute la largeur disponible pour rendre les actions plus visibles.
+
 ## [1.0.52] - 2026-05-23
 
 - Suppression de la mention `MANUEL` dans les fiches tout en conservant leur protection contre les enrichissements automatiques.
