@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.55] - 2026-05-23
+
+- Déclenchement automatique du build multi-OS lors des pushes sur la branche `main`.
+
 ## [1.0.54] - 2026-05-23
 
 - Réduction de l'espace vide entre le titre et les informations dans le zoom fiche.
