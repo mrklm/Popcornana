@@ -149,6 +149,7 @@ class MainWindow(QMainWindow):
         self.tmdb = TmdbClient()
         self.omdb = OmdbClient()
         self.items: list[MediaItem] = []
+        self.source_roots: list[Path] = []
         self.folder_categories: dict[str, str] = {}
         self.folder_posters: dict[str, str] = {}
         self.current_item: MediaItem | None = None
@@ -298,9 +299,13 @@ class MainWindow(QMainWindow):
         buttons_layout.setContentsMargins(0, 0, 0, 0)
         buttons_layout.setSpacing(8)
 
-        choose_button = QPushButton("Choisir dossier")
+        choose_button = QPushButton("Ajouter dossier")
         choose_button.clicked.connect(self.choose_folder)
         buttons_layout.addWidget(choose_button)
+
+        sources_button = QPushButton("Gérer les sources")
+        sources_button.clicked.connect(self.manage_sources)
+        buttons_layout.addWidget(sources_button)
 
         refresh_button = QPushButton("Actualiser")
         refresh_button.clicked.connect(self.refresh_current_folder)
@@ -317,7 +322,7 @@ class MainWindow(QMainWindow):
         buttons_layout.addStretch()
         actions_layout.addLayout(buttons_layout)
 
-        self.folder_label = QLabel("Aucun dossier choisi")
+        self.folder_label = QLabel("Aucune source ajoutée")
         self.folder_label.setObjectName("folderLabel")
         self.folder_label.setWordWrap(True)
         actions_layout.addWidget(self.folder_label)
@@ -473,9 +478,7 @@ class MainWindow(QMainWindow):
         return super().eventFilter(watched, event)
 
     def _load_saved_state(self) -> None:
-        folder = self.repository.get_setting("media_folder")
-        if folder:
-            self.folder_label.setText(folder)
+        self.update_sources_label()
         self.load_source_preferences()
         self.load_api_keys()
         theme_name = self.repository.get_setting("theme") or DEFAULT_THEME
@@ -580,43 +583,79 @@ class MainWindow(QMainWindow):
         folder = QFileDialog.getExistingDirectory(self, "Choisir un dossier de médias")
         if not folder:
             return
-        self.repository.set_setting("media_folder", folder)
-        self.folder_label.setText(folder)
+        self.repository.add_media_source(folder)
+        self.update_sources_label()
         self.refresh_current_folder()
 
     def refresh_current_folder(self) -> None:
-        folder = self.repository.get_setting("media_folder")
-        if not folder:
-            QMessageBox.information(self, "Popcornana", "Choisis d'abord un dossier de médias.")
+        sources = self.repository.list_media_sources()
+        if not sources:
+            QMessageBox.information(self, "Popcornana", "Ajoute d'abord un dossier de médias.")
             return
 
-        root = Path(folder).expanduser()
+        available_roots = [Path(source).expanduser() for source in sources if Path(source).expanduser().exists()]
+        if not available_roots:
+            self.refresh_library()
+            self.update_sources_label()
+            QMessageBox.information(self, "Popcornana", "Aucune source n'est disponible pour le moment.")
+            return
+
         self.folder_categories = self.repository.list_folder_categories()
         before_paths = {str(item.filepath) for item in self.repository.list_media()}
-        scanned = scan_videos(root, self.folder_categories)
-        for item in scanned:
-            self.repository.upsert_media(item, force_identity=item.category_forced)
-        scanned_paths = {str(item.filepath) for item in scanned}
-        removed = self.repository.delete_missing_media()
-        removed += self.repository.delete_media_not_in_scan(root, scanned_paths)
+        scanned_count = 0
+        removed = 0
+        for root in available_roots:
+            scanned = scan_videos(root, self.folder_categories)
+            for item in scanned:
+                self.repository.upsert_media(item, force_identity=item.category_forced)
+            scanned_paths = {str(item.filepath) for item in scanned}
+            scanned_count += len(scanned)
+            removed += self.repository.delete_missing_media(root)
+            removed += self.repository.delete_media_not_in_scan(root, scanned_paths)
+        removed += self.repository.delete_ignored_media()
         after_paths = {str(item.filepath) for item in self.repository.list_media()}
         added = len(after_paths - before_paths)
         self.refresh_library()
+        self.update_sources_label()
 
-        message = f"{len(self.items)} média(s), {added} ajouté(s)"
+        message = f"{scanned_count} média(s) scanné(s), {added} ajouté(s)"
         if removed:
             message += f", {removed} retiré(s)"
         message += "."
         self.statusBar().showMessage(message)
 
+    def update_sources_label(self) -> None:
+        sources = self.repository.list_media_sources()
+        if not sources:
+            self.folder_label.setText("Aucune source ajoutée")
+            return
+        available = [source for source in sources if Path(source).expanduser().exists()]
+        missing_count = len(sources) - len(available)
+        lines = [f"{len(available)} source(s) active(s), {missing_count} absente(s)"]
+        lines.extend(f"- {source}" for source in available[:3])
+        if len(available) > 3:
+            lines.append(f"- ... {len(available) - 3} autre(s)")
+        self.folder_label.setText("\n".join(lines))
+
+    def manage_sources(self) -> None:
+        dialog = MediaSourcesDialog(self.repository.list_media_sources(), self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        for source in dialog.removed_sources():
+            self.repository.remove_media_source(source)
+        self.refresh_library()
+        self.update_sources_label()
+        self.statusBar().showMessage("Sources mises à jour.")
+
     def manage_categories(self) -> None:
-        folder = self.repository.get_setting("media_folder")
-        if not folder:
-            QMessageBox.information(self, "Popcornana", "Choisis d'abord un dossier de médias.")
+        sources = self.repository.list_media_sources()
+        available_sources = [source for source in sources if Path(source).expanduser().exists()]
+        if not available_sources:
+            QMessageBox.information(self, "Popcornana", "Ajoute d'abord un dossier de médias disponible.")
             return
 
         dialog = FolderCategoriesDialog(
-            Path(folder).expanduser(),
+            Path(available_sources[0]).expanduser(),
             self.repository.list_folder_categories(),
             self,
         )
@@ -665,7 +704,8 @@ class MainWindow(QMainWindow):
         skipped_locked = 0
         skipped_complete = 0
         cancelled = False
-        items = self.repository.list_media()
+        source_roots = [Path(source).expanduser() for source in self.repository.list_media_sources()]
+        items = self.repository.list_available_media(source_roots)
         total = len(items)
         for index, item in enumerate(items, start=1):
             if cancel_requested and cancel_requested():
@@ -871,7 +911,8 @@ class MainWindow(QMainWindow):
 
 
     def refresh_library(self) -> None:
-        self.items = self.repository.list_media()
+        self.source_roots = [Path(source).expanduser() for source in self.repository.list_media_sources()]
+        self.items = self.repository.list_available_media(self.source_roots)
         self.folder_categories = self.repository.list_folder_categories()
         self.folder_posters = self.repository.list_folder_posters()
         if self.current_series_title and not self._series_items(self.current_series_title):
@@ -1176,14 +1217,28 @@ class MainWindow(QMainWindow):
         return folder_path, folder.name or folder_path
 
     def _movie_folder_path_for_item(self, item: MediaItem) -> str | None:
-        root_text = self.repository.get_setting("media_folder")
-        if not root_text:
+        root = self._source_root_for_item(item)
+        if not root:
             return None
-        root = Path(root_text).expanduser()
         category, category_folder = category_for_path(root, item.filepath, self.folder_categories)
         if category != "movie_folder" or not category_folder:
             return None
         return str(category_folder)
+
+    def _source_root_for_item(self, item: MediaItem) -> Path | None:
+        roots = getattr(self, "source_roots", None) or [
+            Path(source).expanduser() for source in self.repository.list_media_sources()
+        ]
+        matches = []
+        for root in roots:
+            try:
+                item.filepath.expanduser().relative_to(root)
+            except ValueError:
+                continue
+            matches.append(root)
+        if not matches:
+            return None
+        return max(matches, key=lambda root: len(root.parts))
 
     def _current_movie_folder_title(self) -> str | None:
         if not self.current_movie_folder_path:
@@ -1617,6 +1672,50 @@ class MetadataMatchDialog(QDialog):
         super().accept()
 
 
+class MediaSourcesDialog(QDialog):
+    def __init__(self, sources: list[str], parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._removed_sources: set[str] = set()
+        self.setWindowTitle("Gérer les sources")
+        self.resize(760, 420)
+
+        layout = QVBoxLayout(self)
+        self.list_widget = QListWidget()
+        self.list_widget.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        layout.addWidget(self.list_widget)
+
+        for source in sources:
+            self._add_source_item(source)
+
+        actions_layout = QHBoxLayout()
+        actions_layout.addStretch()
+        remove_button = QPushButton("Supprimer la source")
+        remove_button.clicked.connect(self.remove_selected_sources)
+        actions_layout.addWidget(remove_button)
+        layout.addLayout(actions_layout)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _add_source_item(self, source: str) -> None:
+        status = "disponible" if Path(source).expanduser().exists() else "absente"
+        item = QListWidgetItem(f"{source}\n{status}")
+        item.setData(Qt.UserRole, source)
+        self.list_widget.addItem(item)
+
+    def remove_selected_sources(self) -> None:
+        for item in self.list_widget.selectedItems():
+            source = item.data(Qt.UserRole)
+            if source:
+                self._removed_sources.add(str(source))
+            self.list_widget.takeItem(self.list_widget.row(item))
+
+    def removed_sources(self) -> list[str]:
+        return sorted(self._removed_sources)
+
+
 class FolderCategoriesDialog(QDialog):
     def __init__(self, root: Path, categories: dict[str, str], parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -1981,14 +2080,15 @@ def build_help_html() -> str:
     <h1>Popcornana</h1>
     <p>
         Popcornana est une application locale pour organiser une médiathèque de films et de séries.
-        Elle scanne un dossier choisi, affiche les vidéos sous forme de grille, enrichit les fiches avec
+        Elle scanne les dossiers sources disponibles, affiche les vidéos sous forme de grille, enrichit les fiches avec
         des métadonnées et lance la lecture avec VLC quand il est disponible.
     </p>
 
     <h2>Utilisation rapide</h2>
     <ul>
-        <li><b>Choisir dossier</b> sélectionne le dossier racine de la médiathèque.</li>
-        <li><b>Actualiser</b> scanne les vidéos, ajoute les nouveaux fichiers et retire ceux qui n'existent plus.</li>
+        <li><b>Ajouter dossier</b> ajoute une source à la médiathèque sans remplacer les autres.</li>
+        <li><b>Gérer les sources</b> affiche les sources connues et permet de retirer celles qui ne doivent plus être suivies.</li>
+        <li><b>Actualiser</b> scanne les sources disponibles, ajoute les nouveaux fichiers et retire ceux qui n'existent plus dans ces sources.</li>
         <li><b>Mettre à jour les fiches</b> enrichit les médias avec TMDb et/ou OMDb selon les sources cochées.</li>
         <li><b>Gérer les catégories</b> permet de forcer un dossier en Auto, Film unique, Dossier de films, Série, Dossier de séries ou Ignorer.</li>
         <li>Dans l'onglet Général, cliquez sur le panneau détail à droite pour ouvrir le zoom fiche avec texte agrandi.</li>
@@ -2045,7 +2145,7 @@ def build_help_html() -> str:
         et les réglages utilisateur.
     </p>
     <ul>
-        <li><b>Scan</b> : le scanner parcourt récursivement le dossier racine et filtre les extensions vidéo connues.</li>
+        <li><b>Scan</b> : le scanner parcourt récursivement les sources disponibles et filtre les extensions vidéo connues.</li>
         <li><b>Parsing</b> : les noms de fichiers sont nettoyés, puis comparés à des motifs d'épisodes et d'années.</li>
         <li><b>Catégories</b> : les règles par dossier sont stockées en SQLite. La règle la plus proche du fichier gagne.</li>
         <li><b>Dossiers de films</b> : le regroupement est visuel. Les films restent indépendants en base, tandis que le visuel du dossier est stocké séparément.</li>
@@ -2329,7 +2429,11 @@ def run() -> None:
     def refresh_during_startup() -> None:
         startup.set_status("scan en cours...")
         QApplication.processEvents()
-        removed = window.repository.delete_missing_media()
+        removed = 0
+        for source in window.repository.list_media_sources():
+            root = Path(source).expanduser()
+            if root.exists():
+                removed += window.repository.delete_missing_media(root)
         window.refresh_library()
         if removed:
             startup.set_status(f"{len(window.items)} média(s), {removed} retiré(s)")

@@ -68,6 +68,14 @@ class MediaRepository:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS media_sources (
+                    path TEXT PRIMARY KEY,
+                    added_at TEXT
+                )
+                """
+            )
             columns = {
                 row["name"]
                 for row in connection.execute("PRAGMA table_info(media)").fetchall()
@@ -76,6 +84,18 @@ class MediaRepository:
                 connection.execute("ALTER TABLE media ADD COLUMN metadata_locked INTEGER DEFAULT 0")
             if "director" not in columns:
                 connection.execute("ALTER TABLE media ADD COLUMN director TEXT")
+            legacy_folder = connection.execute(
+                "SELECT value FROM settings WHERE key = ?",
+                ("media_folder",),
+            ).fetchone()
+            if legacy_folder and legacy_folder["value"]:
+                connection.execute(
+                    """
+                    INSERT OR IGNORE INTO media_sources (path, added_at)
+                    VALUES (?, ?)
+                    """,
+                    (str(legacy_folder["value"]), datetime.now(timezone.utc).isoformat()),
+                )
 
     def get_setting(self, key: str) -> str | None:
         with self._connect() as connection:
@@ -92,6 +112,27 @@ class MediaRepository:
                 """,
                 (key, value),
             )
+
+    def list_media_sources(self) -> list[str]:
+        with self._connect() as connection:
+            rows = connection.execute("SELECT path FROM media_sources ORDER BY path COLLATE NOCASE").fetchall()
+        return [str(row["path"]) for row in rows]
+
+    def add_media_source(self, path: str | Path) -> None:
+        source_path = str(Path(path).expanduser())
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO media_sources (path, added_at)
+                VALUES (?, ?)
+                ON CONFLICT(path) DO NOTHING
+                """,
+                (source_path, datetime.now(timezone.utc).isoformat()),
+            )
+
+    def remove_media_source(self, path: str) -> None:
+        with self._connect() as connection:
+            connection.execute("DELETE FROM media_sources WHERE path = ?", (path,))
 
     def list_folder_categories(self) -> dict[str, str]:
         with self._connect() as connection:
@@ -246,8 +287,20 @@ class MediaRepository:
             ).fetchall()
         return [self._row_to_media(row) for row in rows]
 
-    def delete_missing_media(self) -> int:
-        items = self.list_media()
+    def list_available_media(self, source_roots: list[Path]) -> list[MediaItem]:
+        roots = [root.expanduser() for root in source_roots if root.expanduser().exists()]
+        if not roots:
+            return []
+        return [
+            item for item in self.list_media()
+            if item.filepath.exists() and any(self._is_relative_to(item.filepath, root) for root in roots)
+        ]
+
+    def delete_missing_media(self, root: Path | None = None) -> int:
+        items = [
+            item for item in self.list_media()
+            if root is None or self._is_relative_to(item.filepath, root)
+        ]
         missing_paths = [str(item.filepath) for item in items if not item.filepath.exists()]
         if not missing_paths:
             return 0
@@ -260,9 +313,7 @@ class MediaRepository:
         items = self.list_media()
         stale_paths = []
         for item in items:
-            try:
-                item.filepath.relative_to(root)
-            except ValueError:
+            if not self._is_relative_to(item.filepath, root):
                 continue
             if str(item.filepath) not in scanned_paths:
                 stale_paths.append(str(item.filepath))
@@ -272,6 +323,14 @@ class MediaRepository:
         with self._connect() as connection:
             connection.executemany("DELETE FROM media WHERE filepath = ?", [(path,) for path in stale_paths])
         return len(stale_paths)
+
+    @staticmethod
+    def _is_relative_to(path: Path, root: Path) -> bool:
+        try:
+            path.expanduser().relative_to(root.expanduser())
+        except ValueError:
+            return False
+        return True
 
     @staticmethod
     def _row_to_media(row: sqlite3.Row) -> MediaItem:

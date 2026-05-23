@@ -4,6 +4,12 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.53] - 2026-05-23
+
+- Remplacement de `Choisir dossier` par `Ajouter dossier` pour permettre plusieurs sources de médiathèque.
+- Ajout d'une fenêtre `Gérer les sources` permettant de voir les sources disponibles ou absentes et de retirer celles qui ne doivent plus être suivies.
+- Le scan parcourt désormais les sources disponibles sans supprimer les fiches des disques absents, qui restent cachées tant que la source n'est pas reconnectée.
+
 ## [1.0.52] - 2026-05-23
 
 - Agrandissement de la hauteur du zoom fiche et réduction de la hauteur des boutons d'action.
