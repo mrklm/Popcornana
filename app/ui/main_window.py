@@ -970,8 +970,6 @@ class MainWindow(QMainWindow):
             meta.append(f"Réalisateur: {item.director}")
         if item.media_type == "tv" and item.season and item.episode:
             meta.append(f"S{item.season:02d}E{item.episode:02d}")
-        if item.metadata_locked:
-            meta.append("MANUEL")
         self.meta_label.setText(" | ".join(meta))
         self.overview_label.setText(item.overview or "Résumé non disponible.")
         self.path_label.setText(str(item.filepath))
@@ -1106,8 +1104,6 @@ class MainWindow(QMainWindow):
             meta.append(f"{len(seasons)} saison(s)")
         if reference_item.director:
             meta.append(f"Réalisateur: {reference_item.director}")
-        if any(item.metadata_locked for item in entry.items):
-            meta.append("MANUEL")
         self.title_label.setText(entry.title)
         self.meta_label.setText(" | ".join(meta))
         self.overview_label.setText(reference_item.overview or "Ouvre la série pour afficher ses épisodes.")
@@ -1776,6 +1772,7 @@ class ManualMetadataDialog(QDialog):
     def __init__(self, item: MediaItem, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.poster_path: Path | None = None
+        self.initial_poster_dir = item.filepath.parent if item.filepath.parent.exists() else Path.home()
         self.title = item.title
         self.year = item.year
         self.director = item.director
@@ -1838,12 +1835,13 @@ class ManualMetadataDialog(QDialog):
         filename, _selected_filter = QFileDialog.getOpenFileName(
             self,
             "Choisir une affiche",
-            "",
+            str(self.initial_poster_dir),
             "Images (*.png *.jpg *.jpeg *.webp)",
         )
         if not filename:
             return
         self.poster_path = Path(filename)
+        self.initial_poster_dir = self.poster_path.parent
         self.poster_label_field.setText(filename)
 
     def accept(self) -> None:
