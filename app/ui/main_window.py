@@ -1443,9 +1443,12 @@ class FullscreenEntryDialog(QDialog):
 
         button_row = QHBoxLayout()
         button_row.setContentsMargins(0, 0, 0, 0)
+        button_row.setSpacing(16)
         return_button = QPushButton("Retour à la liste")
+        return_button.setMinimumSize(260, 72)
         return_button.clicked.connect(self.accept)
         watch_button = QPushButton("Visionner")
+        watch_button.setMinimumSize(260, 72)
         watch_button.setEnabled(bool(entry.items))
         watch_button.clicked.connect(self.watch_entry)
         button_row.addWidget(return_button, alignment=Qt.AlignLeft)
@@ -1507,7 +1510,7 @@ class FullscreenEntryDialog(QDialog):
         overview_label.setFont(overview_font)
 
         button_font = QFont()
-        button_font.setPointSize(16)
+        button_font.setPointSize(20)
         button_font.setBold(True)
         return_button.setFont(button_font)
         watch_button.setFont(button_font)
@@ -1552,9 +1555,10 @@ class FullscreenEntryDialog(QDialog):
                 color: {self.theme["FIELD_FG"]};
                 border: 1px solid {self.theme["ACCENT"]};
                 border-radius: 6px;
-                padding: 12px 22px;
-                min-height: 34px;
-                font-size: 18px;
+                padding: 18px 34px;
+                min-height: 54px;
+                min-width: 220px;
+                font-size: 22px;
                 font-weight: 700;
             }}
             QPushButton:hover {{
