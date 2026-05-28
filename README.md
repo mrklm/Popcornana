@@ -8,9 +8,9 @@ L'application est pensée pour rester simple et locale: les fichiers vidéo rest
 
 ## Aperçu
 
-![Popcornana](screenshots/popcornana1.png)
-![Popcornana](screenshots/popcornana2.png)
-![Popcornana](screenshots/popcornana3.png)
+![Popcornana](screenshots/Popcornana1.png)
+![Popcornana](screenshots/Popcornana2.png)
+![Popcornana](screenshots/Popcornana3.png)
 
 
 ## Fonctionnalités
