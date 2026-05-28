@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.55] - 2026-05-28
+
+- Gestion des sources autorisée, memorisé via fichier caché en racine de media, ajout duree films, maj readme et aide
+
 ## [1.0.54] - 2026-05-23
 
 - Création automatique des fichiers portables `cover.*` et `Popinfo.txt` dans le dossier du film après enrichissement ou édition d'une fiche, sans écraser les fichiers déjà présents.

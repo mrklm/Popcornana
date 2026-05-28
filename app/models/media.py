@@ -14,6 +14,7 @@ class MediaItem:
     overview: str | None = None
     genres: str | None = None
     director: str | None = None
+    runtime_minutes: int | None = None
     vote_average: float | None = None
     poster_path: str | None = None
     backdrop_path: str | None = None
