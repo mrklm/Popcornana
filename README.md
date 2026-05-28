@@ -1,10 +1,16 @@
 # Popcornana
 
-Version actuelle: **1.0.50**
+Version actuelle: **1.0.61**
 
 Popcornana est une application desktop locale pour organiser une médiathèque de films et séries. Elle scanne un dossier de vidéos, nettoie les noms de fichiers, affiche les médias dans une grille visuelle, récupère des métadonnées depuis OMDb et/ou TMDb, garde les affiches en cache local, puis lance la lecture avec VLC en plein écran quand il est disponible, avec sous-titre détecté automatiquement.
 
 L'application est pensée pour rester simple et locale: les fichiers vidéo restent sur la machine, la base de données est un fichier SQLite local, et les affiches téléchargées sont stockées dans `data/posters/`.
+
+## Aperçu
+
+![Popcornana](screenshots/popcornana1.png)
+![Popcornana](screenshots/popcornana2.png)
+![Popcornana](screenshots/popcornana3.png)
 
 
 ## Fonctionnalités
