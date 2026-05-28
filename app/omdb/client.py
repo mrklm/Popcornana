@@ -26,6 +26,7 @@ class OmdbResult:
     overview: str | None
     genres: str | None
     director: str | None
+    runtime_minutes: int | None
     poster_url: str | None
     vote_average: float | None
     score: float
@@ -136,6 +137,7 @@ class OmdbClient:
             overview=_none_if_na(payload.get("Plot")),
             genres=_none_if_na(payload.get("Genre")),
             director=_none_if_na(payload.get("Director")),
+            runtime_minutes=_parse_runtime(payload.get("Runtime")),
             poster_url=poster_url,
             vote_average=imdb_rating,
             score=0,
@@ -155,6 +157,7 @@ def apply_omdb_result(item: MediaItem, result: OmdbResult) -> MediaItem:
     item.overview = result.overview or item.overview
     item.genres = result.genres or item.genres
     item.director = result.director or item.director
+    item.runtime_minutes = result.runtime_minutes or item.runtime_minutes
     item.vote_average = result.vote_average or item.vote_average
     if result.poster_url:
         item.poster_path = result.poster_url
@@ -187,6 +190,13 @@ def _parse_rating(value: str | None) -> float | None:
         return float(value)
     except ValueError:
         return None
+
+
+def _parse_runtime(value: str | None) -> int | None:
+    if not value or value == "N/A":
+        return None
+    number = value.split()[0]
+    return int(number) if number.isdigit() else None
 
 
 def _none_if_na(value: str | None) -> str | None:

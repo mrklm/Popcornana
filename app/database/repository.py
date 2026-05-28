@@ -42,6 +42,7 @@ class MediaRepository:
                     overview TEXT,
                     genres TEXT,
                     director TEXT,
+                    runtime_minutes INTEGER,
                     vote_average REAL,
                     poster_path TEXT,
                     backdrop_path TEXT,
@@ -85,6 +86,8 @@ class MediaRepository:
                 connection.execute("ALTER TABLE media ADD COLUMN metadata_locked INTEGER DEFAULT 0")
             if "director" not in columns:
                 connection.execute("ALTER TABLE media ADD COLUMN director TEXT")
+            if "runtime_minutes" not in columns:
+                connection.execute("ALTER TABLE media ADD COLUMN runtime_minutes INTEGER")
             legacy_folder = connection.execute(
                 "SELECT value FROM settings WHERE key = ?",
                 ("media_folder",),
@@ -176,10 +179,10 @@ class MediaRepository:
                 """
                 INSERT INTO media (
                     filepath, media_type, title, original_title, year, overview, genres, director,
-                    vote_average, poster_path, backdrop_path, tmdb_id, season, episode,
+                    runtime_minutes, vote_average, poster_path, backdrop_path, tmdb_id, season, episode,
                     metadata_locked, added_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(filepath) DO UPDATE SET
                     media_type = CASE
                         WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.media_type
@@ -208,6 +211,10 @@ class MediaRepository:
                     director = CASE
                         WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.director
                         ELSE COALESCE(excluded.director, media.director)
+                    END,
+                    runtime_minutes = CASE
+                        WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.runtime_minutes
+                        ELSE COALESCE(excluded.runtime_minutes, media.runtime_minutes)
                     END,
                     vote_average = CASE
                         WHEN media.metadata_locked = 1 AND excluded.metadata_locked = 0 THEN media.vote_average
@@ -247,6 +254,7 @@ class MediaRepository:
                     item.overview,
                     item.genres,
                     item.director,
+                    item.runtime_minutes,
                     item.vote_average,
                     item.poster_path,
                     item.backdrop_path,
@@ -354,6 +362,7 @@ class MediaRepository:
             overview=row["overview"],
             genres=row["genres"],
             director=row["director"],
+            runtime_minutes=row["runtime_minutes"],
             vote_average=row["vote_average"],
             poster_path=row["poster_path"],
             backdrop_path=row["backdrop_path"],

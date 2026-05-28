@@ -17,12 +17,13 @@ L'application est pensée pour rester simple et locale: les fichiers vidéo rest
 - Regroupement des épisodes dans des dossiers de séries pour garder la médiathèque lisible.
 - Regroupement des répertoires de films en dossiers navigables, avec visuel dédié possible.
 - Séparation visuelle des sections `Films` et `Séries`.
-- Panneau détail avec affiche, titre, note, résumé, chemin du fichier et bouton `Visionner`.
+- Panneau détail avec affiche, titre, durée, note, résumé, chemin du fichier et bouton `Visionner`.
 - Zoom fiche au clic sur le panneau détail, avec texte agrandi, résumé scrollable et bouton `Visionner`.
 - Résumés longs contenus dans des zones scrollables.
 - Enrichissement automatique via OMDb.
 - Recherches contextuelles TMDb/OMDb et édition manuelle des métadonnées depuis la grille.
-- Création de `cover.*` et `Popinfo.txt` dans le dossier du film quand une fiche est enrichie, sans écraser les fichiers existants.
+- Création de `cover.*` et `Popinfo.txt` dans le dossier du film quand une fiche est enrichie sur une source autorisée, sans écraser les fichiers existants.
+- Synchronisation des métadonnées entre sources avant les appels TMDb/OMDb quand un doublon local fiable possède déjà `cover.*` ou `Popinfo.txt`.
 - Édition commune des métadonnées de série sans modifier les titres des épisodes.
 - Choix persistant des sources de métadonnées dans `Options avancées`.
 - Si OMDb et TMDb sont sélectionnés ensemble, TMDb est essayé en premier puis OMDb sert de secours.
@@ -49,7 +50,7 @@ Un clic droit sur un film ou un épisode permet de lancer une recherche TMDb, un
 Regroupe les actions et réglages:
 
 - `Ajouter dossier`: ajoute une source à la médiathèque sans remplacer les autres.
-- `Gérer les sources`: affiche les sources connues et permet de retirer celles qui ne doivent plus être suivies.
+- `Gérer les sources`: affiche les sources connues, permet de retirer celles qui ne doivent plus être suivies et d'autoriser la synchronisation locale.
 - `Actualiser`: analyse les sources disponibles, ajoute les vidéos détectées et retire les entrées dont le fichier n'existe plus dans ces sources.
 - `Mettre à jour les fiches`: récupère les métadonnées avec les sources sélectionnées et affiche une fenêtre de progression.
 - `Gérer les catégories`: force un dossier en Auto, Film unique, Dossier de films, Série, Dossier de séries ou Ignorer.
@@ -61,6 +62,10 @@ Regroupe les actions et réglages:
 Décrit le fonctionnement de Popcornana, donne les adresses pour obtenir les clés API TMDb/OMDb et résume les choix techniques dans une section `Pour les Geeks`.
 
 ## Métadonnées
+
+Avant d'appeler Internet, `Mettre à jour les fiches` cherche d'abord un doublon local fiable dans les autres sources. Si un dossier équivalent possède déjà `cover.*` ou `Popinfo.txt`, Popcornana copie uniquement les fichiers manquants vers la source cible lorsque sa case `Synchro autorisée` est cochée.
+
+L'autorisation est mémorisée dans `.popcornana-source` à la racine de la source. Ce fichier limite l'écriture aux fichiers de métadonnées portables et conserve la version du format utilisé.
 
 Les clés API peuvent être enregistrées depuis `Options avancées`. Elles peuvent aussi être placées dans le fichier `.env`.
 

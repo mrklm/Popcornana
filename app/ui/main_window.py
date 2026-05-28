@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import shutil
 import sys
 from pathlib import Path
@@ -134,6 +135,8 @@ DEFAULT_THEME = "[Sombre] Midnight Garage"
 PORTABLE_INFO_FILENAME = "Popinfo.txt"
 PORTABLE_COVER_STEM = "cover"
 PORTABLE_COVER_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+SOURCE_MARKER_FILENAME = ".popcornana-source"
+METADATA_FORMAT_VERSION = 1
 
 
 @dataclass
@@ -644,7 +647,8 @@ class MainWindow(QMainWindow):
             return
         available = [source for source in sources if Path(source).expanduser().exists()]
         missing_count = len(sources) - len(available)
-        lines = [f"{len(available)} source(s) active(s), {missing_count} absente(s)"]
+        sync_count = sum(1 for source in available if source_sync_allowed(Path(source).expanduser()))
+        lines = [f"{len(available)} source(s) active(s), {missing_count} absente(s), {sync_count} synchro autorisée(s)"]
         lines.extend(f"- {source}" for source in available[:3])
         if len(available) > 3:
             lines.append(f"- ... {len(available) - 3} autre(s)")
@@ -656,6 +660,8 @@ class MainWindow(QMainWindow):
             return
         for source in dialog.removed_sources():
             self.repository.remove_media_source(source)
+        for source, allowed in dialog.sync_choices().items():
+            write_source_marker(Path(source).expanduser(), allowed)
         self.refresh_library()
         self.update_sources_label()
         self.statusBar().showMessage("Sources mises à jour.")
@@ -715,6 +721,7 @@ class MainWindow(QMainWindow):
 
         updated = 0
         portable_files_created = 0
+        local_synced = 0
         skipped_locked = 0
         skipped_complete = 0
         cancelled = False
@@ -731,6 +738,11 @@ class MainWindow(QMainWindow):
             if cancel_requested and cancel_requested():
                 cancelled = True
                 break
+            local_changed, created = synchronize_portable_metadata(item, items)
+            if local_changed:
+                self.repository.upsert_media(item)
+                local_synced += 1
+                portable_files_created += created
             if item.metadata_locked:
                 portable_files_created += create_portable_metadata_files(item)
                 skipped_locked += 1
@@ -772,6 +784,8 @@ class MainWindow(QMainWindow):
             message += f" {skipped_complete} fiche(s) déjà complétée(s) ignorée(s)."
         if skipped_locked:
             message += f" {skipped_locked} média(s) verrouillé(s) ignoré(s)."
+        if local_synced:
+            message += f" {local_synced} fiche(s) synchronisée(s) localement."
         if portable_files_created:
             message += f" {portable_files_created} fichier(s) portable(s) créé(s)."
         self.statusBar().showMessage(message)
@@ -816,6 +830,7 @@ class MainWindow(QMainWindow):
                     item.overview,
                     item.genres,
                     item.director,
+                    item.runtime_minutes,
                     item.vote_average,
                     item.poster_path,
                 )
@@ -826,6 +841,7 @@ class MainWindow(QMainWindow):
                     enriched.overview,
                     enriched.genres,
                     enriched.director,
+                    enriched.runtime_minutes,
                     enriched.vote_average,
                     enriched.poster_path,
                 )
@@ -1018,6 +1034,8 @@ class MainWindow(QMainWindow):
         meta = [media_type_label(item.media_type)]
         if item.year:
             meta.append(str(item.year))
+        if item.runtime_minutes:
+            meta.append(format_runtime(item.runtime_minutes))
         if item.vote_average:
             meta.append(f"{item.vote_average:.1f}/10")
         if item.director:
@@ -1156,6 +1174,8 @@ class MainWindow(QMainWindow):
             meta.append(str(reference_item.year))
         if seasons:
             meta.append(f"{len(seasons)} saison(s)")
+        if reference_item.runtime_minutes:
+            meta.append(format_runtime(reference_item.runtime_minutes))
         if reference_item.director:
             meta.append(f"Réalisateur: {reference_item.director}")
         self.title_label.setText(entry.title)
@@ -1717,16 +1737,24 @@ class MediaSourcesDialog(QDialog):
     def __init__(self, sources: list[str], parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._removed_sources: set[str] = set()
+        self.sync_checkboxes: dict[str, QCheckBox] = {}
         self.setWindowTitle("Gérer les sources")
-        self.resize(760, 420)
+        self.resize(860, 460)
 
         layout = QVBoxLayout(self)
-        self.list_widget = QListWidget()
-        self.list_widget.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        layout.addWidget(self.list_widget)
+        self.table = QTableWidget(len(sources), 4)
+        self.table.setHorizontalHeaderLabels(["Source", "Etat", "Synchro autorisée", "Format"])
+        self.table.verticalHeader().setVisible(False)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setAlternatingRowColors(True)
+        self.table.horizontalHeader().resizeSection(0, 500)
+        self.table.horizontalHeader().resizeSection(1, 100)
+        self.table.horizontalHeader().resizeSection(2, 150)
+        self.table.horizontalHeader().resizeSection(3, 80)
+        layout.addWidget(self.table)
 
-        for source in sources:
-            self._add_source_item(source)
+        for row, source in enumerate(sources):
+            self._add_source_row(row, source)
 
         actions_layout = QHBoxLayout()
         actions_layout.addStretch()
@@ -1741,20 +1769,59 @@ class MediaSourcesDialog(QDialog):
         layout.addWidget(buttons)
 
     def _add_source_item(self, source: str) -> None:
-        status = "disponible" if Path(source).expanduser().exists() else "absente"
-        item = QListWidgetItem(f"{source}\n{status}")
-        item.setData(Qt.UserRole, source)
-        self.list_widget.addItem(item)
+        row = self.table.rowCount()
+        self.table.insertRow(row)
+        self._add_source_row(row, source)
+
+    def _add_source_row(self, row: int, source: str) -> None:
+        source_path = Path(source).expanduser()
+        marker = read_source_marker(source_path)
+        available = source_path.exists()
+
+        source_item = QTableWidgetItem(source)
+        source_item.setData(Qt.UserRole, source)
+        source_item.setFlags(source_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        status_item = QTableWidgetItem("disponible" if available else "absente")
+        status_item.setFlags(status_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        format_value = marker.get("metadata_format_version") if marker else ""
+        format_item = QTableWidgetItem(f"v{format_value}" if format_value else "")
+        format_item.setFlags(format_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+
+        checkbox = QCheckBox()
+        checkbox.setChecked(source_sync_allowed(source_path))
+        checkbox.setEnabled(available)
+        self.sync_checkboxes[source] = checkbox
+
+        self.table.setItem(row, 0, source_item)
+        self.table.setItem(row, 1, status_item)
+        self.table.setCellWidget(row, 2, checkbox)
+        self.table.setItem(row, 3, format_item)
 
     def remove_selected_sources(self) -> None:
-        for item in self.list_widget.selectedItems():
+        selected_rows = sorted(
+            {index.row() for index in self.table.selectionModel().selectedRows()},
+            reverse=True,
+        )
+        for row in selected_rows:
+            item = self.table.item(row, 0)
+            if item is None:
+                continue
             source = item.data(Qt.UserRole)
             if source:
                 self._removed_sources.add(str(source))
-            self.list_widget.takeItem(self.list_widget.row(item))
+                self.sync_checkboxes.pop(str(source), None)
+            self.table.removeRow(row)
 
     def removed_sources(self) -> list[str]:
         return sorted(self._removed_sources)
+
+    def sync_choices(self) -> dict[str, bool]:
+        return {
+            source: checkbox.isChecked()
+            for source, checkbox in self.sync_checkboxes.items()
+            if Path(source).expanduser().exists()
+            and (checkbox.isChecked() or read_source_marker(Path(source).expanduser()))
+        }
 
 
 class FolderCategoriesDialog(QDialog):
@@ -2008,13 +2075,18 @@ def local_poster_path(poster_path: str | None) -> Path | None:
 def create_portable_metadata_files(item: MediaItem) -> int:
     if not item.filepath.exists() or not has_portable_metadata(item):
         return 0
+    if not source_sync_allowed_for_path(item.filepath.parent):
+        return 0
 
     created = 0
     folder = item.filepath.parent
     info_path = folder / PORTABLE_INFO_FILENAME
     if not info_path.exists():
-        info_path.write_text(portable_info_text(item), encoding="utf-8")
-        created += 1
+        try:
+            info_path.write_text(portable_info_text(item), encoding="utf-8")
+            created += 1
+        except OSError:
+            return created
 
     if not existing_portable_cover(folder):
         poster = local_poster_path(item.poster_path)
@@ -2022,9 +2094,199 @@ def create_portable_metadata_files(item: MediaItem) -> int:
             suffix = poster.suffix.lower()
             if suffix not in PORTABLE_COVER_EXTENSIONS:
                 suffix = ".jpg"
-            shutil.copy2(poster, folder / f"{PORTABLE_COVER_STEM}{suffix}")
-            created += 1
+            try:
+                shutil.copy2(poster, folder / f"{PORTABLE_COVER_STEM}{suffix}")
+                created += 1
+            except OSError:
+                return created
     return created
+
+
+def read_source_marker(source: Path) -> dict[str, str]:
+    marker = source / SOURCE_MARKER_FILENAME
+    if not marker.exists():
+        return {}
+    values: dict[str, str] = {}
+    try:
+        for line in marker.read_text(encoding="utf-8").splitlines():
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            values[key.strip()] = value.strip()
+    except OSError:
+        return {}
+    return values
+
+
+def write_source_marker(source: Path, sync_allowed: bool) -> None:
+    if not source.exists():
+        return
+    previous = read_source_marker(source)
+    now = datetime.now(timezone.utc).isoformat()
+    created_at = previous.get("created_at") or now
+    created_with = previous.get("created_with") or APP_VERSION
+    text = "\n".join(
+        [
+            "# Popcornana source marker",
+            f"sync_metadata_allowed={'true' if sync_allowed else 'false'}",
+            f"metadata_format_version={METADATA_FORMAT_VERSION}",
+            f"created_with={created_with}",
+            f"updated_with={APP_VERSION}",
+            f"created_at={created_at}",
+            f"updated_at={now}",
+            "write_scope=metadata_files_only",
+            "",
+        ]
+    )
+    try:
+        (source / SOURCE_MARKER_FILENAME).write_text(text, encoding="utf-8")
+    except OSError:
+        return
+
+
+def source_sync_allowed(source: Path) -> bool:
+    return read_source_marker(source).get("sync_metadata_allowed", "").casefold() == "true"
+
+
+def source_sync_allowed_for_path(path: Path) -> bool:
+    for candidate in (path, *path.parents):
+        marker = candidate / SOURCE_MARKER_FILENAME
+        if marker.exists():
+            return read_source_marker(candidate).get("sync_metadata_allowed", "").casefold() == "true"
+    return False
+
+
+def parse_portable_info(folder: Path) -> dict[str, str]:
+    info_path = folder / PORTABLE_INFO_FILENAME
+    if not info_path.exists():
+        return {}
+    values: dict[str, str] = {}
+    current_key: str | None = None
+    synopsis_lines: list[str] = []
+    try:
+        lines = info_path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return {}
+    for line in lines:
+        if line == "synopsis:":
+            current_key = "synopsis"
+            continue
+        if current_key == "synopsis":
+            synopsis_lines.append(line)
+            continue
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        values[key.strip()] = value.strip()
+    if synopsis_lines:
+        values["synopsis"] = "\n".join(synopsis_lines).strip()
+    return values
+
+
+def apply_portable_info(item: MediaItem, values: dict[str, str], cover: Path | None) -> MediaItem:
+    item.title = values.get("title") or item.title
+    item.original_title = values.get("original_title") or item.original_title
+    item.year = _parse_int(values.get("year")) or item.year
+    item.director = values.get("director") or item.director
+    item.genres = values.get("genres") or item.genres
+    item.runtime_minutes = _parse_int(values.get("runtime_minutes")) or item.runtime_minutes
+    item.vote_average = _parse_float(values.get("vote_average")) or item.vote_average
+    item.tmdb_id = _parse_int(values.get("tmdb_id")) or item.tmdb_id
+    item.overview = values.get("synopsis") or item.overview
+    if cover:
+        item.poster_path = str(cover)
+    return item
+
+
+def synchronize_portable_metadata(item: MediaItem, items: list[MediaItem]) -> tuple[bool, int]:
+    if not item.filepath.exists():
+        return False, 0
+
+    folder = item.filepath.parent
+    values = parse_portable_info(folder)
+    cover = existing_portable_cover(folder)
+    changed = False
+    created = 0
+
+    if values or cover:
+        before = media_signature(item)
+        apply_portable_info(item, values, cover)
+        changed = media_signature(item) != before
+
+    missing_info = not (folder / PORTABLE_INFO_FILENAME).exists()
+    missing_cover = existing_portable_cover(folder) is None
+    if not (missing_info or missing_cover):
+        return changed, created
+    if not source_sync_allowed_for_path(folder):
+        return changed, created
+
+    duplicate = find_portable_duplicate(item, items)
+    if not duplicate:
+        return changed, created
+
+    duplicate_folder = duplicate.filepath.parent
+    duplicate_info = duplicate_folder / PORTABLE_INFO_FILENAME
+    duplicate_cover = existing_portable_cover(duplicate_folder)
+
+    if missing_info and duplicate_info.exists():
+        try:
+            shutil.copy2(duplicate_info, folder / PORTABLE_INFO_FILENAME)
+        except OSError:
+            return changed, created
+        values = parse_portable_info(folder)
+        created += 1
+    if missing_cover and duplicate_cover:
+        target_cover = folder / f"{PORTABLE_COVER_STEM}{duplicate_cover.suffix.lower()}"
+        try:
+            shutil.copy2(duplicate_cover, target_cover)
+        except OSError:
+            return changed, created
+        cover = target_cover
+        created += 1
+
+    if values or cover:
+        before = media_signature(item)
+        apply_portable_info(item, values, cover)
+        changed = changed or media_signature(item) != before
+    return changed or created > 0, created
+
+
+def find_portable_duplicate(item: MediaItem, items: list[MediaItem]) -> MediaItem | None:
+    matches = []
+    for candidate in items:
+        if candidate.filepath == item.filepath or not candidate.filepath.exists():
+            continue
+        candidate_folder = candidate.filepath.parent
+        if not (candidate_folder / PORTABLE_INFO_FILENAME).exists() and not existing_portable_cover(candidate_folder):
+            continue
+        if portable_match_is_reliable(item, candidate):
+            matches.append(candidate)
+    return matches[0] if len(matches) == 1 else None
+
+
+def portable_match_is_reliable(left: MediaItem, right: MediaItem) -> bool:
+    left_folder = normalize_match_text(left.filepath.parent.name)
+    right_folder = normalize_match_text(right.filepath.parent.name)
+    if left_folder and left_folder == right_folder:
+        return True
+    left_title = normalize_match_text(left.title)
+    right_title = normalize_match_text(right.title)
+    if not left_title or left_title != right_title:
+        return False
+    return not left.year or not right.year or left.year == right.year
+
+
+def normalize_match_text(value: str) -> str:
+    return "".join(char.casefold() for char in value if char.isalnum())
+
+
+def format_runtime(minutes: int) -> str:
+    hours, remaining_minutes = divmod(minutes, 60)
+    if hours and remaining_minutes:
+        return f"{hours}h{remaining_minutes:02d}"
+    if hours:
+        return f"{hours}h"
+    return f"{remaining_minutes} min"
 
 
 def has_portable_metadata(item: MediaItem) -> bool:
@@ -2034,6 +2296,7 @@ def has_portable_metadata(item: MediaItem) -> bool:
         item.overview,
         item.genres,
         item.director,
+        item.runtime_minutes,
         item.vote_average,
         item.poster_path,
         item.tmdb_id,
@@ -2067,6 +2330,8 @@ def portable_info_text(item: MediaItem) -> str:
         lines.append(f"director: {item.director}")
     if item.genres:
         lines.append(f"genres: {item.genres}")
+    if item.runtime_minutes:
+        lines.append(f"runtime_minutes: {item.runtime_minutes}")
     if item.vote_average:
         lines.append(f"vote_average: {item.vote_average:.1f}")
     if item.tmdb_id:
@@ -2079,6 +2344,19 @@ def portable_info_text(item: MediaItem) -> str:
     if item.overview:
         lines.extend(["", "synopsis:", item.overview])
     return "\n".join(lines).strip() + "\n"
+
+
+def _parse_int(value: str | None) -> int | None:
+    return int(value) if value and value.isdigit() else None
+
+
+def _parse_float(value: str | None) -> float | None:
+    if not value:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
 
 
 def wrap_long_title(title: str, max_token_length: int = 22) -> str:
@@ -2136,6 +2414,7 @@ def media_signature(item: MediaItem) -> tuple:
         item.overview,
         item.genres,
         item.director,
+        item.runtime_minutes,
         item.vote_average,
         item.poster_path,
         item.backdrop_path,
@@ -2148,6 +2427,7 @@ def needs_metadata_update(item: MediaItem) -> bool:
         item.overview,
         item.director,
         item.poster_path,
+        item.runtime_minutes,
         item.vote_average,
         item.tmdb_id,
     )
@@ -2163,6 +2443,8 @@ def fullscreen_meta_text(entry: LibraryEntry) -> str:
             meta.append(str(reference_item.year))
         if seasons:
             meta.append(f"{len(seasons)} saison(s)")
+        if reference_item.runtime_minutes:
+            meta.append(format_runtime(reference_item.runtime_minutes))
         if reference_item.director:
             meta.append(f"Réalisateur: {reference_item.director}")
         return " | ".join(meta)
@@ -2171,6 +2453,8 @@ def fullscreen_meta_text(entry: LibraryEntry) -> str:
     meta = [media_type_label(item.media_type)]
     if item.year:
         meta.append(str(item.year))
+    if item.runtime_minutes:
+        meta.append(format_runtime(item.runtime_minutes))
     if item.vote_average:
         meta.append(f"{item.vote_average:.1f}/10")
     if item.director:
@@ -2206,10 +2490,10 @@ def build_help_html() -> str:
     <h2>Utilisation rapide</h2>
     <ul>
         <li><b>Ajouter dossier</b> ajoute une source à la médiathèque sans remplacer les autres.</li>
-        <li><b>Gérer les sources</b> affiche les sources connues et permet de retirer celles qui ne doivent plus être suivies.</li>
+        <li><b>Gérer les sources</b> affiche les sources connues, permet de les retirer et d'autoriser la synchronisation locale.</li>
         <li><b>Actualiser</b> scanne les sources disponibles, ajoute les nouveaux fichiers et retire ceux qui n'existent plus dans ces sources.</li>
         <li><b>Mettre à jour les fiches</b> enrichit les médias avec TMDb et/ou OMDb selon les sources cochées.</li>
-        <li>Quand une fiche est enrichie, Popcornana crée <b>cover.*</b> et <b>Popinfo.txt</b> dans le dossier du film si ces fichiers n'existent pas déjà.</li>
+        <li>Quand une fiche est enrichie, Popcornana crée <b>cover.*</b> et <b>Popinfo.txt</b> dans le dossier du film si la source autorise la synchro.</li>
         <li><b>Gérer les catégories</b> permet de forcer un dossier en Auto, Film unique, Dossier de films, Série, Dossier de séries ou Ignorer.</li>
         <li>Dans l'onglet Général, cliquez sur le panneau détail à droite pour ouvrir le zoom fiche avec texte agrandi.</li>
     </ul>
@@ -2237,7 +2521,16 @@ def build_help_html() -> str:
 
     <h2>Clés API</h2>
     <p>
-        Les clés API servent à récupérer titres, résumés, affiches, années, notes et réalisateurs.
+        Avant les appels Internet, Popcornana cherche un doublon local fiable dans les autres sources.
+        Si un dossier équivalent possède déjà <code>cover.*</code> ou <code>Popinfo.txt</code>, les fichiers manquants
+        sont copiés vers la source cible uniquement quand <b>Synchro autorisée</b> est cochée dans <b>Gérer les sources</b>.
+    </p>
+    <p>
+        Cette autorisation est mémorisée dans <code>.popcornana-source</code> à la racine de la source. Le fichier indique
+        aussi la version du format de métadonnées et limite l'écriture aux fichiers portables de Popcornana.
+    </p>
+    <p>
+        Les clés API servent à récupérer titres, résumés, affiches, années, durées, notes et réalisateurs.
         Les vidéos restent sur votre machine ; seules les recherches de métadonnées appellent les services externes.
     </p>
     <ul>
@@ -2270,6 +2563,7 @@ def build_help_html() -> str:
         <li><b>Catégories</b> : les règles par dossier sont stockées en SQLite. La règle la plus proche du fichier gagne.</li>
         <li><b>Dossiers de films</b> : le regroupement est visuel. Les films restent indépendants en base, tandis que le visuel du dossier est stocké séparément.</li>
         <li><b>Enrichissement</b> : TMDb et OMDb renvoient des résultats scorés. Le titre et l'année aident à choisir le meilleur candidat.</li>
+        <li><b>Synchronisation locale</b> : avant TMDb/OMDb, Popcornana peut copier <code>cover.*</code> et <code>Popinfo.txt</code> depuis un doublon fiable vers une source autorisée.</li>
         <li><b>Images</b> : les affiches téléchargées, choisies manuellement ou associées aux dossiers sont mises en cache dans le dossier de données.</li>
         <li><b>Verrouillage</b> : une édition manuelle active un verrou pour éviter qu'un futur enrichissement automatique écrase la fiche.</li>
         <li><b>Build</b> : les releases sont générées avec PyInstaller. Les artefacts Linux incluent aussi une AppImage.</li>

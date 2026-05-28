@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 
-FALLBACK_VERSION = "1.0.60"
+FALLBACK_VERSION = "1.0.61"
 
 
 def read_app_version() -> str:
