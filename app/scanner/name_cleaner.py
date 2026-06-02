@@ -50,8 +50,19 @@ SEASON_FOLDER_PATTERN = re.compile(r"\b(?:Season|Saison|S)[ ._-]?(?P<season>\d{1
 EPISODE_ONLY_PATTERN = re.compile(r"\b(?:Episode|Épisode|Ep|E)[ ._-]?(?P<episode>\d{1,3})\b", re.IGNORECASE)
 
 
+def is_ignored_media_artifact(path: Path) -> bool:
+    name = path.name
+    if name in {".DS_Store", "Thumbs.db"}:
+        return True
+    return name.startswith("._")
+
+
 def is_video_file(path: Path) -> bool:
-    return path.is_file() and path.suffix.lower() in VIDEO_EXTENSIONS
+    return (
+        path.is_file()
+        and not is_ignored_media_artifact(path)
+        and path.suffix.lower() in VIDEO_EXTENSIONS
+    )
 
 
 def parse_media_filename(path: Path) -> dict[str, int | str | None]:

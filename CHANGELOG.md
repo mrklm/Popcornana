@@ -4,45 +4,75 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
-## [1.0.55] - 2026-05-28
+## [1.0.62] - 2026-06-02
+
+- Correction de la génération de `Popinfo.txt` après une édition manuelle, même lorsque la fiche ne contient qu'un titre corrigé, et création des fichiers portables lors de l'édition commune d'une série.
+
+## [1.0.61] - 2026-05-28
 
 - Gestion des sources autorisée, memorisé via fichier caché en racine de media, ajout duree films, maj readme et aide
 
-## [1.0.54] - 2026-05-23
+## [1.0.60] - 2026-05-23
 
 - Création automatique des fichiers portables `cover.*` et `Popinfo.txt` dans le dossier du film après enrichissement ou édition d'une fiche, sans écraser les fichiers déjà présents.
 
-## [1.0.53] - 2026-05-23
+## [1.0.59] - 2026-05-23
 
 - Remplacement de `Choisir dossier` par `Ajouter dossier` pour permettre plusieurs sources de médiathèque.
 - Ajout d'une fenêtre `Gérer les sources` permettant de voir les sources disponibles ou absentes et de retirer celles qui ne doivent plus être suivies.
 - Le scan parcourt désormais les sources disponibles sans supprimer les fiches des disques absents, qui restent cachées tant que la source n'est pas reconnectée.
 
-## [1.0.52] - 2026-05-23
+## [1.0.58] - 2026-05-23
 
 - Agrandissement de la hauteur du zoom fiche et réduction de la hauteur des boutons d'action.
 
-## [1.0.51] - 2026-05-23
+## [1.0.57] - 2026-05-23
+
+- Correction de l'authentification utilisée pour publier automatiquement les releases GitHub.
+
+## [1.0.56] - 2026-05-23
 
 - Ajout d'une marge dans les résumés du zoom fiche pour éviter que la barre de défilement masque des lettres.
 - Publication automatique d'une release GitHub après chaque build multi-OS réussi.
 
-## [1.0.50] - 2026-05-23
+## [1.0.55] - 2026-05-23
+
+- Déclenchement automatique du build multi-OS lors des pushes sur la branche `main`.
+
+## [1.0.54] - 2026-05-23
 
 - Réduction de l'espace vide entre le titre et les informations dans le zoom fiche.
 
-## [1.0.49] - 2026-05-23
+## [1.0.53] - 2026-05-23
 
 - Extension des boutons du zoom fiche sur toute la largeur disponible pour rendre les actions plus visibles.
 
-## [1.0.48] - 2026-05-23
+## [1.0.52] - 2026-05-23
 
 - Suppression de la mention `MANUEL` dans les fiches tout en conservant leur protection contre les enrichissements automatiques.
 - Ouverture du choix d'affiche manuelle directement dans le dossier du film édité.
 
-## [1.0.47] - 2026-05-23
+## [1.0.51] - 2026-05-23
 
 - Agrandissement des boutons du zoom fiche pour faciliter les actions `Retour à la liste` et `Visionner`.
+
+## [1.0.50] - 2026-05-23
+
+- Linux: correction du placement initial des vignettes de la médiathèque en recalculant la grille à l'ouverture et au redimensionnement de la fenêtre.
+- Windows: amélioration de la détection de VLC en recherchant aussi `vlc.exe` dans les dossiers d'installation classiques afin de fiabiliser le lancement en plein écran.
+
+## [1.0.49] - 2026-05-23
+
+- Linux: stabilisation du placement des vignettes de la médiathèque après actualisation en forçant le flux gauche-droite et un relayout explicite de la grille.
+
+## [1.0.48] - 2026-05-23
+
+- Linux: le scan ignore désormais les fichiers artefacts `._*`, `.DS_Store` et `Thumbs.db` pour éviter les doublons fantômes dans la médiathèque.
+- Le rafraîchissement nettoie aussi les anciennes entrées parasites déjà présentes dans la base locale.
+
+## [1.0.47] - 2026-05-22
+
+- Conservation des boutons de fenêtre natifs sous Windows et Linux en ouvrant l'application maximisée plutôt qu'en plein écran exclusif.
 
 ## [1.0.46] - 2026-05-22
 

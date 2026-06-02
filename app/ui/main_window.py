@@ -171,6 +171,14 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._load_saved_state()
 
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        QTimer.singleShot(0, self._refresh_grid_layout)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._refresh_grid_layout()
+
     def _build_ui(self) -> None:
         page = QWidget()
         page.setObjectName("page")
@@ -185,6 +193,8 @@ class MainWindow(QMainWindow):
         self.grid.setObjectName("libraryGrid")
         self.grid.setViewMode(QListWidget.IconMode)
         self.grid.setIconSize(QSize(144, 216))
+        self.grid.setFlow(QListWidget.LeftToRight)
+        self.grid.setWrapping(True)
         self.grid.setResizeMode(QListWidget.Adjust)
         self.grid.setMovement(QListWidget.Static)
         self.grid.setSpacing(14)
@@ -734,7 +744,7 @@ class MainWindow(QMainWindow):
                 local_synced += 1
                 portable_files_created += created
             if item.metadata_locked:
-                portable_files_created += create_portable_metadata_files(item)
+                portable_files_created += create_portable_metadata_files(item, force=True, require_sync=False)
                 skipped_locked += 1
                 continue
             if not needs_metadata_update(item):
@@ -865,7 +875,7 @@ class MainWindow(QMainWindow):
             if item.poster_path:
                 self.tmdb.download_poster(item.poster_path)
             self.repository.upsert_media(item)
-            create_portable_metadata_files(item)
+            create_portable_metadata_files(item, force=True, require_sync=False)
             self.refresh_library()
 
     def search_omdb_current(self) -> None:
@@ -893,7 +903,7 @@ class MainWindow(QMainWindow):
                 item.poster_path = previous_poster
             item.metadata_locked = True
             self.repository.upsert_media(item)
-            create_portable_metadata_files(item)
+            create_portable_metadata_files(item, force=True, require_sync=False)
             self.refresh_library()
 
     def edit_metadata_current(self) -> None:
@@ -912,8 +922,10 @@ class MainWindow(QMainWindow):
             saved_poster = save_manual_poster(dialog.poster_path)
             item.poster_path = str(saved_poster.relative_to(POSTERS_DIR))
         self.repository.upsert_media(item)
-        create_portable_metadata_files(item)
+        created = create_portable_metadata_files(item, force=True, require_sync=False)
         self.refresh_library()
+        if created:
+            self.statusBar().showMessage(f"{created} fichier(s) portable(s) créé(s).")
 
     def edit_series_current(self) -> None:
         if not self.current_entry or self.current_entry.kind != "series":
@@ -928,6 +940,7 @@ class MainWindow(QMainWindow):
             poster_path = str(saved_poster.relative_to(POSTERS_DIR))
 
         updated_count = len(self.current_entry.items)
+        portable_files_created = 0
         for item in self.current_entry.items:
             item.year = dialog.year
             item.director = dialog.director
@@ -936,8 +949,12 @@ class MainWindow(QMainWindow):
                 item.poster_path = poster_path
             item.metadata_locked = True
             self.repository.upsert_media(item)
+            portable_files_created += create_portable_metadata_files(item, force=True, require_sync=False)
         self.refresh_library()
-        self.statusBar().showMessage(f"{updated_count} épisode(s) de la série mis à jour.")
+        message = f"{updated_count} épisode(s) de la série mis à jour."
+        if portable_files_created:
+            message += f" {portable_files_created} fichier(s) portable(s) créé(s)."
+        self.statusBar().showMessage(message)
 
 
     def refresh_library(self) -> None:
@@ -964,8 +981,7 @@ class MainWindow(QMainWindow):
                 header_font.setBold(True)
                 list_item.setFont(header_font)
                 list_item.setFlags(Qt.NoItemFlags)
-                header_width = max(560, self.grid.viewport().width() - 32)
-                list_item.setSizeHint(QSize(header_width, 104))
+                list_item.setSizeHint(QSize(self._header_item_width(), 104))
                 list_item.setData(Qt.UserRole, None)
             else:
                 list_item = QListWidgetItem(self._icon_for_entry(entry), self._label_for_entry(entry))
@@ -973,11 +989,29 @@ class MainWindow(QMainWindow):
                 list_item.setData(Qt.UserRole, index)
                 list_item.setSizeHint(QSize(184, 318))
             self.grid.addItem(list_item)
+        self._refresh_grid_layout()
         if self.entries:
             first_media_row = next((row for row, entry in enumerate(self.entries) if entry.kind != "header"), 0)
             self.grid.setCurrentRow(first_media_row)
         else:
             self._show_empty_details()
+
+    def _header_item_width(self) -> int:
+        return max(560, self.grid.viewport().width() - 32)
+
+    def _refresh_grid_layout(self) -> None:
+        if not hasattr(self, "grid"):
+            return
+        header_width = self._header_item_width()
+        for row, entry in enumerate(getattr(self, "entries", [])):
+            if entry.kind != "header":
+                continue
+            item = self.grid.item(row)
+            if item is not None:
+                item.setSizeHint(QSize(header_width, 104))
+        self.grid.doItemsLayout()
+        self.grid.updateGeometries()
+        self.grid.viewport().update()
 
     def show_media_count_status(self) -> None:
         self.statusBar().showMessage(f"{len(self.items)} média(s) trouvé(s).")
@@ -2045,10 +2079,10 @@ def local_poster_path(poster_path: str | None) -> Path | None:
     return POSTERS_DIR / poster_path.lstrip("/")
 
 
-def create_portable_metadata_files(item: MediaItem) -> int:
-    if not item.filepath.exists() or not has_portable_metadata(item):
+def create_portable_metadata_files(item: MediaItem, force: bool = False, require_sync: bool = True) -> int:
+    if not item.filepath.exists() or (not force and not has_portable_metadata(item)):
         return 0
-    if not source_sync_allowed_for_path(item.filepath.parent):
+    if require_sync and not source_sync_allowed_for_path(item.filepath.parent):
         return 0
 
     created = 0
@@ -2264,7 +2298,7 @@ def format_runtime(minutes: int) -> str:
 
 def has_portable_metadata(item: MediaItem) -> bool:
     useful_fields = (
-        item.original_title,
+        item.original_title if item.original_title != item.title else None,
         item.year,
         item.overview,
         item.genres,
@@ -2803,15 +2837,18 @@ def run() -> None:
     theme_name = window.repository.get_setting("theme") or DEFAULT_THEME
     startup = StartupDialog(THEMES.get(theme_name, THEMES[DEFAULT_THEME]), window)
 
-    def force_full_screen() -> None:
-        window.setWindowState(window.windowState() | Qt.WindowFullScreen)
-        window.showFullScreen()
+    def apply_startup_window_state() -> None:
+        if sys.platform == "darwin":
+            window.setWindowState(window.windowState() | Qt.WindowFullScreen)
+            window.showFullScreen()
+        else:
+            window.showMaximized()
         window.raise_()
         window.activateWindow()
 
     def finish_startup() -> None:
         startup.close()
-        force_full_screen()
+        apply_startup_window_state()
 
     def refresh_during_startup() -> None:
         startup.set_status("scan en cours...")
@@ -2829,7 +2866,7 @@ def run() -> None:
 
     window.show()
     startup.show_centered_over_parent()
-    QTimer.singleShot(0, force_full_screen)
+    QTimer.singleShot(0, apply_startup_window_state)
     QTimer.singleShot(100, refresh_during_startup)
     QTimer.singleShot(5000, finish_startup)
     sys.exit(app.exec())
