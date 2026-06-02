@@ -744,7 +744,7 @@ class MainWindow(QMainWindow):
                 local_synced += 1
                 portable_files_created += created
             if item.metadata_locked:
-                portable_files_created += create_portable_metadata_files(item)
+                portable_files_created += create_portable_metadata_files(item, force=True, require_sync=False)
                 skipped_locked += 1
                 continue
             if not needs_metadata_update(item):
@@ -875,7 +875,7 @@ class MainWindow(QMainWindow):
             if item.poster_path:
                 self.tmdb.download_poster(item.poster_path)
             self.repository.upsert_media(item)
-            create_portable_metadata_files(item)
+            create_portable_metadata_files(item, force=True, require_sync=False)
             self.refresh_library()
 
     def search_omdb_current(self) -> None:
@@ -903,7 +903,7 @@ class MainWindow(QMainWindow):
                 item.poster_path = previous_poster
             item.metadata_locked = True
             self.repository.upsert_media(item)
-            create_portable_metadata_files(item)
+            create_portable_metadata_files(item, force=True, require_sync=False)
             self.refresh_library()
 
     def edit_metadata_current(self) -> None:
@@ -922,8 +922,10 @@ class MainWindow(QMainWindow):
             saved_poster = save_manual_poster(dialog.poster_path)
             item.poster_path = str(saved_poster.relative_to(POSTERS_DIR))
         self.repository.upsert_media(item)
-        create_portable_metadata_files(item)
+        created = create_portable_metadata_files(item, force=True, require_sync=False)
         self.refresh_library()
+        if created:
+            self.statusBar().showMessage(f"{created} fichier(s) portable(s) créé(s).")
 
     def edit_series_current(self) -> None:
         if not self.current_entry or self.current_entry.kind != "series":
@@ -938,6 +940,7 @@ class MainWindow(QMainWindow):
             poster_path = str(saved_poster.relative_to(POSTERS_DIR))
 
         updated_count = len(self.current_entry.items)
+        portable_files_created = 0
         for item in self.current_entry.items:
             item.year = dialog.year
             item.director = dialog.director
@@ -946,8 +949,12 @@ class MainWindow(QMainWindow):
                 item.poster_path = poster_path
             item.metadata_locked = True
             self.repository.upsert_media(item)
+            portable_files_created += create_portable_metadata_files(item, force=True, require_sync=False)
         self.refresh_library()
-        self.statusBar().showMessage(f"{updated_count} épisode(s) de la série mis à jour.")
+        message = f"{updated_count} épisode(s) de la série mis à jour."
+        if portable_files_created:
+            message += f" {portable_files_created} fichier(s) portable(s) créé(s)."
+        self.statusBar().showMessage(message)
 
 
     def refresh_library(self) -> None:
@@ -2072,10 +2079,10 @@ def local_poster_path(poster_path: str | None) -> Path | None:
     return POSTERS_DIR / poster_path.lstrip("/")
 
 
-def create_portable_metadata_files(item: MediaItem) -> int:
-    if not item.filepath.exists() or not has_portable_metadata(item):
+def create_portable_metadata_files(item: MediaItem, force: bool = False, require_sync: bool = True) -> int:
+    if not item.filepath.exists() or (not force and not has_portable_metadata(item)):
         return 0
-    if not source_sync_allowed_for_path(item.filepath.parent):
+    if require_sync and not source_sync_allowed_for_path(item.filepath.parent):
         return 0
 
     created = 0
@@ -2291,7 +2298,7 @@ def format_runtime(minutes: int) -> str:
 
 def has_portable_metadata(item: MediaItem) -> bool:
     useful_fields = (
-        item.original_title,
+        item.original_title if item.original_title != item.title else None,
         item.year,
         item.overview,
         item.genres,

@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.62] - 2026-06-02
+
+- Correction de la génération de `Popinfo.txt` après une édition manuelle, même lorsque la fiche ne contient qu'un titre corrigé, et création des fichiers portables lors de l'édition commune d'une série.
+
 ## [1.0.61] - 2026-05-28
 
 - Gestion des sources autorisée, memorisé via fichier caché en racine de media, ajout duree films, maj readme et aide
