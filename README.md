@@ -1,6 +1,6 @@
 # Popcornana
 
-Version actuelle: **1.0.62**
+Version actuelle: **1.0.63**
 
 Popcornana est une application desktop locale pour organiser une médiathèque de films et séries. Elle scanne un dossier de vidéos, nettoie les noms de fichiers, affiche les médias dans une grille visuelle, récupère des métadonnées depuis OMDb et/ou TMDb, garde les affiches en cache local, puis lance la lecture avec VLC en plein écran quand il est disponible, avec sous-titre détecté automatiquement.
 
@@ -29,6 +29,7 @@ L'application est pensée pour rester simple et locale: les fichiers vidéo rest
 - Enrichissement automatique via OMDb.
 - Recherches contextuelles TMDb/OMDb et édition manuelle des métadonnées depuis la grille.
 - Création de `cover.*` et `Popinfo.txt` dans le dossier du film quand une fiche est enrichie sur une source autorisée, sans écraser les fichiers existants.
+- Lecture automatique de `Popinfo.txt` et `cover.*` pendant `Actualiser`, pratique pour transporter une médiathèque entre plusieurs ordinateurs.
 - Synchronisation des métadonnées entre sources avant les appels TMDb/OMDb quand un doublon local fiable possède déjà `cover.*` ou `Popinfo.txt`.
 - Édition commune des métadonnées de série sans modifier les titres des épisodes.
 - Choix persistant des sources de métadonnées dans `Options avancées`.
@@ -57,7 +58,7 @@ Regroupe les actions et réglages:
 
 - `Ajouter dossier`: ajoute une source à la médiathèque sans remplacer les autres.
 - `Gérer les sources`: affiche les sources connues, permet de retirer celles qui ne doivent plus être suivies et d'autoriser la synchronisation locale.
-- `Actualiser`: analyse les sources disponibles, ajoute les vidéos détectées et retire les entrées dont le fichier n'existe plus dans ces sources.
+- `Actualiser`: analyse les sources disponibles, ajoute les vidéos détectées, lit les fiches portables `Popinfo.txt`/`cover.*` présentes dans les dossiers et retire les entrées dont le fichier n'existe plus dans ces sources.
 - `Mettre à jour les fiches`: récupère les métadonnées avec les sources sélectionnées et affiche une fenêtre de progression.
 - `Gérer les catégories`: force un dossier en Auto, Film unique, Dossier de films, Série, Dossier de séries ou Ignorer.
 - `Options avancées`: permet de choisir OMDb, TMDb ou les deux et d'enregistrer les clés API.

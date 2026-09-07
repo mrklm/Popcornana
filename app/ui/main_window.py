@@ -484,7 +484,11 @@ class MainWindow(QMainWindow):
         page_layout.addWidget(self.tabs, stretch=1)
         self.setCentralWidget(page)
 
-        self.setStatusBar(QStatusBar())
+        status_bar = QStatusBar()
+        self.version_status_label = QLabel(f"v{APP_VERSION}")
+        self.version_status_label.setObjectName("versionStatusLabel")
+        status_bar.addPermanentWidget(self.version_status_label)
+        self.setStatusBar(status_bar)
         self.show_media_count_status()
 
     def eventFilter(self, watched, event) -> bool:
@@ -619,10 +623,13 @@ class MainWindow(QMainWindow):
         self.folder_categories = self.repository.list_folder_categories()
         before_paths = {str(item.filepath) for item in self.repository.list_media()}
         scanned_count = 0
+        imported_portable = 0
         removed = 0
         for root in available_roots:
             scanned = scan_videos(root, self.folder_categories)
             for item in scanned:
+                if import_portable_metadata(item):
+                    imported_portable += 1
                 self.repository.upsert_media(item, force_identity=item.category_forced)
             scanned_paths = {str(item.filepath) for item in scanned}
             scanned_count += len(scanned)
@@ -635,6 +642,8 @@ class MainWindow(QMainWindow):
         self.update_sources_label()
 
         message = f"{scanned_count} média(s) scanné(s), {added} ajouté(s)"
+        if imported_portable:
+            message += f", {imported_portable} fiche(s) portable(s) lue(s)"
         if removed:
             message += f", {removed} retiré(s)"
         message += "."
@@ -2190,8 +2199,21 @@ def parse_portable_info(folder: Path) -> dict[str, str]:
     return values
 
 
+def import_portable_metadata(item: MediaItem) -> bool:
+    folder = item.filepath.parent
+    values = parse_portable_info(folder)
+    cover = existing_portable_cover(folder)
+    if not values and not cover:
+        return False
+
+    before = media_signature(item)
+    apply_portable_info(item, values, cover)
+    return media_signature(item) != before or item.metadata_locked
+
+
 def apply_portable_info(item: MediaItem, values: dict[str, str], cover: Path | None) -> MediaItem:
     item.title = values.get("title") or item.title
+    item.media_type = values.get("media_type") or item.media_type
     item.original_title = values.get("original_title") or item.original_title
     item.year = _parse_int(values.get("year")) or item.year
     item.director = values.get("director") or item.director
@@ -2200,6 +2222,9 @@ def apply_portable_info(item: MediaItem, values: dict[str, str], cover: Path | N
     item.vote_average = _parse_float(values.get("vote_average")) or item.vote_average
     item.tmdb_id = _parse_int(values.get("tmdb_id")) or item.tmdb_id
     item.overview = values.get("synopsis") or item.overview
+    item.season = _parse_int(values.get("season")) or item.season
+    item.episode = _parse_int(values.get("episode")) or item.episode
+    item.metadata_locked = _parse_bool(values.get("metadata_locked")) or item.metadata_locked
     if cover:
         item.poster_path = str(cover)
     return item
@@ -2329,6 +2354,8 @@ def portable_info_text(item: MediaItem) -> str:
         f"title: {item.title}",
         f"media_type: {item.media_type}",
     ]
+    if item.metadata_locked:
+        lines.append("metadata_locked: true")
     if item.original_title and item.original_title != item.title:
         lines.append(f"original_title: {item.original_title}")
     if item.year:
@@ -2364,6 +2391,10 @@ def _parse_float(value: str | None) -> float | None:
         return float(value)
     except ValueError:
         return None
+
+
+def _parse_bool(value: str | None) -> bool:
+    return value.casefold() in {"1", "true", "yes", "oui"} if value else False
 
 
 def wrap_long_title(title: str, max_token_length: int = 22) -> str:
@@ -2415,6 +2446,7 @@ def save_manual_poster(source: Path) -> Path:
 
 def media_signature(item: MediaItem) -> tuple:
     return (
+        item.media_type,
         item.title,
         item.original_title,
         item.year,
@@ -2426,6 +2458,9 @@ def media_signature(item: MediaItem) -> tuple:
         item.poster_path,
         item.backdrop_path,
         item.tmdb_id,
+        item.season,
+        item.episode,
+        item.metadata_locked,
     )
 
 
@@ -2498,7 +2533,7 @@ def build_help_html() -> str:
     <ul>
         <li><b>Ajouter dossier</b> ajoute une source à la médiathèque sans remplacer les autres.</li>
         <li><b>Gérer les sources</b> affiche les sources connues, permet de les retirer et d'autoriser la synchronisation locale.</li>
-        <li><b>Actualiser</b> scanne les sources disponibles, ajoute les nouveaux fichiers et retire ceux qui n'existent plus dans ces sources.</li>
+        <li><b>Actualiser</b> scanne les sources disponibles, ajoute les nouveaux fichiers, lit les fiches portables <code>Popinfo.txt</code>/<code>cover.*</code> et retire ceux qui n'existent plus dans ces sources.</li>
         <li><b>Mettre à jour les fiches</b> enrichit les médias avec TMDb et/ou OMDb selon les sources cochées.</li>
         <li>Quand une fiche est enrichie, Popcornana crée <b>cover.*</b> et <b>Popinfo.txt</b> dans le dossier du film si la source autorise la synchro.</li>
         <li><b>Gérer les catégories</b> permet de forcer un dossier en Auto, Film unique, Dossier de films, Série, Dossier de séries ou Ignorer.</li>
@@ -2577,7 +2612,7 @@ def build_help_html() -> str:
     </ul>
     <p>
         🛠️ En résumé : le scanner construit une liste de médias, les règles utilisateur corrigent les ambiguïtés,
-        SQLite garde l'état local, puis les clients TMDb/OMDb enrichissent les fiches quand une source est activée.
+        SQLite garde l'état local, le scan importe les fiches portables trouvées dans les dossiers, puis les clients TMDb/OMDb enrichissent les fiches quand une source est activée.
     </p>
 
     <h2>Pour les développeurs</h2>
@@ -2690,6 +2725,11 @@ def build_stylesheet(theme: dict[str, str]) -> str:
             background: {theme["PANEL"]};
             color: {theme["FG"]};
             border: none;
+        }}
+        QLabel#versionStatusLabel {{
+            color: {theme["ACCENT"]};
+            font-weight: 700;
+            padding: 0 8px;
         }}
         QLabel {{
             color: {theme["FG"]};

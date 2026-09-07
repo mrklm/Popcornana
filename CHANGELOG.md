@@ -4,6 +4,12 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.63] - 2026-09-08
+
+- Correction de `Options > Actualiser`: les fiches portables `Popinfo.txt` et `cover.*` présentes dans les dossiers des vidéos sont désormais lues dès le scan, afin de retrouver les métadonnées transférées depuis un autre ordinateur.
+- Ajout du champ `metadata_locked` dans les nouveaux `Popinfo.txt` pour conserver le verrouillage des fiches modifiées manuellement lors des prochains transferts.
+- Affichage de la version courante dans la barre d'état, en bas à droite de l'application.
+
 ## [1.0.62] - 2026-06-02
 
 - Correction de la génération de `Popinfo.txt` après une édition manuelle, même lorsque la fiche ne contient qu'un titre corrigé, et création des fichiers portables lors de l'édition commune d'une série.
