@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import shutil
 import subprocess
@@ -18,6 +19,7 @@ BUILD_DIR = ROOT_DIR / "build"
 ICON_SOURCE = ROOT_DIR / "assets" / "popcornana.png"
 MACOS_ICON_SOURCE = ROOT_DIR / "assets" / "popcornana.icns"
 ICON_DIR = BUILD_DIR / "icons"
+VERSION_PATH = ROOT_DIR / "VERSION"
 
 
 def main() -> None:
@@ -99,37 +101,93 @@ def add_data_arg(source: str, destination: str) -> str:
 
 
 def package_artifact(target: str) -> None:
-    artifact_base = DIST_DIR / f"Popcornana-{target}"
+    version = read_version()
+    artifact_base = DIST_DIR / f"Popcornana-{version}-{target}"
+    artifacts: list[Path] = []
     if target == "macos-intel":
         app_path = DIST_DIR / "Popcornana.app"
-        zip_path = artifact_base.with_suffix(".zip")
+        zip_path = artifact_path(artifact_base, ".zip")
         if shutil.which("ditto"):
             subprocess.run(
                 ["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(app_path), str(zip_path)],
                 check=True,
             )
-            print(zip_path)
-            return
-        zip_directory(app_path, zip_path)
-        print(zip_path)
+        else:
+            zip_directory(app_path, zip_path)
+        artifacts.append(zip_path)
+
+        dmg_path = artifact_path(artifact_base, ".dmg")
+        create_dmg(app_path, dmg_path, version)
+        artifacts.append(dmg_path)
+        print_artifacts_with_checksums(artifacts)
         return
 
     if target == "windows-x64":
         exe_path = DIST_DIR / "Popcornana.exe"
-        zip_path = artifact_base.with_suffix(".zip")
+        zip_path = artifact_path(artifact_base, ".zip")
         with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             archive.write(exe_path, exe_path.name)
-        print(zip_path)
+        artifacts.append(zip_path)
+        print_artifacts_with_checksums(artifacts)
         return
 
     executable_path = DIST_DIR / "Popcornana"
-    tar_path = artifact_base.with_suffix(".tar.gz")
+    tar_path = artifact_path(artifact_base, ".tar.gz")
     with tarfile.open(tar_path, "w:gz") as archive:
         archive.add(executable_path, arcname=executable_path.name)
-    print(tar_path)
+    artifacts.append(tar_path)
 
     appimage_path = build_linux_appimage(executable_path, artifact_base)
-    print(appimage_path)
+    artifacts.append(appimage_path)
+    print_artifacts_with_checksums(artifacts)
+
+
+def artifact_path(base: Path, extension: str) -> Path:
+    return Path(f"{base}{extension}")
+
+
+def read_version() -> str:
+    try:
+        return VERSION_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        return "unknown"
+
+
+def create_dmg(app_path: Path, dmg_path: Path, version: str) -> None:
+    if not shutil.which("hdiutil"):
+        raise SystemExit("hdiutil is required to build the macOS DMG artifact.")
+    subprocess.run(
+        [
+            "hdiutil",
+            "create",
+            "-volname",
+            f"Popcornana {version}",
+            "-srcfolder",
+            str(app_path),
+            "-ov",
+            "-format",
+            "UDZO",
+            str(dmg_path),
+        ],
+        check=True,
+    )
+
+
+def print_artifacts_with_checksums(artifacts: list[Path]) -> None:
+    for artifact in artifacts:
+        print(artifact)
+        print(write_sha256(artifact))
+
+
+def write_sha256(artifact: Path) -> Path:
+    checksum = hashlib.sha256()
+    with artifact.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            checksum.update(chunk)
+
+    checksum_path = artifact.with_name(f"{artifact.name}.sha256")
+    checksum_path.write_text(f"{checksum.hexdigest()}  {artifact.name}\n", encoding="utf-8")
+    return checksum_path
 
 
 def build_linux_appimage(executable_path: Path, artifact_base: Path) -> Path:
@@ -173,7 +231,7 @@ exec "$HERE/usr/bin/Popcornana" "$@"
     apprun_path.write_text(apprun, encoding="utf-8")
     apprun_path.chmod(0o755)
 
-    appimage_path = artifact_base.with_suffix(".AppImage")
+    appimage_path = artifact_path(artifact_base, ".AppImage")
     env = os.environ.copy()
     env.setdefault("ARCH", "x86_64")
     env.setdefault("APPIMAGE_EXTRACT_AND_RUN", "1")

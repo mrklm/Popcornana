@@ -4,6 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.64] - 2026-09-08
+
+- Ajout du numéro de version dans le nom des artefacts générés par le build local et le workflow de release.
+- Génération d'une image disque `.dmg` pour macOS et de fichiers `.sha256` pour les artefacts de release.
+
 ## [1.0.63] - 2026-09-08
 
 - Correction de `Options > Actualiser`: les fiches portables `Popinfo.txt` et `cover.*` présentes dans les dossiers des vidéos sont désormais lues dès le scan, afin de retrouver les métadonnées transférées depuis un autre ordinateur.
