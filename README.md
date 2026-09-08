@@ -1,6 +1,6 @@
 # Popcornana
 
-Version actuelle: **1.0.64**
+Version actuelle: **1.0.65**
 
 Popcornana est une application desktop locale pour organiser une médiathèque de films et séries. Elle scanne un dossier de vidéos, nettoie les noms de fichiers, affiche les médias dans une grille visuelle, récupère des métadonnées depuis OMDb et/ou TMDb, garde les affiches en cache local, puis lance la lecture avec VLC en plein écran quand il est disponible, avec sous-titre détecté automatiquement.
 
@@ -179,8 +179,8 @@ Le projet dispose d'un workflow GitHub Actions pour générer des releases disti
 
 Artefacts produits:
 
-- `Popcornana-<version>-macos-intel.zip`: application `.app` macOS Intel ;
-- `Popcornana-<version>-macos-intel.dmg`: image disque macOS Intel ;
+- `Popcornana-<version>-macos-<nom-os>-intel.zip`: application `.app` macOS Intel ;
+- `Popcornana-<version>-macos-<nom-os>-intel.dmg`: image disque macOS Intel ;
 - `Popcornana-<version>-windows-x64.zip`: exécutable Windows x64 ;
 - `Popcornana-<version>-linux-x64.tar.gz`: exécutable Linux x64 ;
 - `Popcornana-<version>-linux-x64.AppImage`: application Linux x64 portable.
@@ -216,13 +216,13 @@ macOS:
 python scripts/build_release.py --target macos-intel
 ```
 
-Le build macOS produit `dist/Popcornana.app`, une archive `.zip`, une image disque `.dmg` et leurs fichiers `.sha256`.
+Le build macOS produit `dist/Popcornana.app`, une archive `.zip`, une image disque `.dmg` et leurs fichiers `.sha256`. Les fichiers macOS incluent automatiquement le nom de l'OS utilisé pour construire l'app, par exemple `macos-sonoma-intel` ou `macos-catalina-intel`.
 
 Pour vérifier un artefact:
 
 ```bash
 cd dist
-shasum -a 256 -c Popcornana-<version>-macos-intel.dmg.sha256
+shasum -a 256 -c Popcornana-<version>-macos-<nom-os>-intel.dmg.sha256
 ```
 
 Windows:

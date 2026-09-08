@@ -22,10 +22,10 @@ jobs:
           - target: macos-intel
             os: macos-15-intel
             artifact_pattern: |
-              dist/Popcornana-*-macos-intel.zip
-              dist/Popcornana-*-macos-intel.zip.sha256
-              dist/Popcornana-*-macos-intel.dmg
-              dist/Popcornana-*-macos-intel.dmg.sha256
+              dist/Popcornana-*-macos-*-intel.zip
+              dist/Popcornana-*-macos-*-intel.zip.sha256
+              dist/Popcornana-*-macos-*-intel.dmg
+              dist/Popcornana-*-macos-*-intel.dmg.sha256
           - target: windows-x64
             os: windows-latest
             artifact_pattern: |
@@ -103,10 +103,10 @@ jobs:
           target_commitish: ${{ github.sha }}
           overwrite_files: true
           files: |
-            release-assets/Popcornana-macos-intel/Popcornana-*-macos-intel.zip
-            release-assets/Popcornana-macos-intel/Popcornana-*-macos-intel.zip.sha256
-            release-assets/Popcornana-macos-intel/Popcornana-*-macos-intel.dmg
-            release-assets/Popcornana-macos-intel/Popcornana-*-macos-intel.dmg.sha256
+            release-assets/Popcornana-macos-intel/Popcornana-*-macos-*-intel.zip
+            release-assets/Popcornana-macos-intel/Popcornana-*-macos-*-intel.zip.sha256
+            release-assets/Popcornana-macos-intel/Popcornana-*-macos-*-intel.dmg
+            release-assets/Popcornana-macos-intel/Popcornana-*-macos-*-intel.dmg.sha256
             release-assets/Popcornana-windows-x64/Popcornana-*-windows-x64.zip
             release-assets/Popcornana-windows-x64/Popcornana-*-windows-x64.zip.sha256
             release-assets/Popcornana-linux-x64/Popcornana-*-linux-x64.tar.gz

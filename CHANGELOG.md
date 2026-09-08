@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.65] - 2026-09-08
+
+- Ajout automatique du nom de l'OS dans les noms des artefacts macOS, par exemple `macos-sonoma-intel` ou `macos-catalina-intel`.
+
 ## [1.0.64] - 2026-09-08
 
 - Ajout du numéro de version dans le nom des artefacts générés par le build local et le workflow de release.

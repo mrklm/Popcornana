@@ -102,7 +102,7 @@ def add_data_arg(source: str, destination: str) -> str:
 
 def package_artifact(target: str) -> None:
     version = read_version()
-    artifact_base = DIST_DIR / f"Popcornana-{version}-{target}"
+    artifact_base = DIST_DIR / f"Popcornana-{version}-{artifact_target_name(target)}"
     artifacts: list[Path] = []
     if target == "macos-intel":
         app_path = DIST_DIR / "Popcornana.app"
@@ -144,6 +144,39 @@ def package_artifact(target: str) -> None:
 
 def artifact_path(base: Path, extension: str) -> Path:
     return Path(f"{base}{extension}")
+
+
+def artifact_target_name(target: str) -> str:
+    if target == "macos-intel":
+        return f"macos-{macos_release_name()}-intel"
+    return target
+
+
+def macos_release_name() -> str:
+    version = macos_version()
+    major_minor = ".".join(version.split(".")[:2])
+    release_names = {
+        "10.15": "catalina",
+        "11": "big-sur",
+        "12": "monterey",
+        "13": "ventura",
+        "14": "sonoma",
+        "15": "sequoia",
+    }
+    return release_names.get(major_minor) or release_names.get(version.split(".", 1)[0], "macos")
+
+
+def macos_version() -> str:
+    try:
+        result = subprocess.run(
+            ["sw_vers", "-productVersion"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return ""
+    return result.stdout.strip()
 
 
 def read_version() -> str:
