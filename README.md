@@ -4,7 +4,7 @@ Version actuelle: **1.0.65**
 
 Popcornana est une application desktop locale pour organiser une médiathèque de films et séries. Elle scanne un dossier de vidéos, nettoie les noms de fichiers, affiche les médias dans une grille visuelle, récupère des métadonnées depuis OMDb et/ou TMDb, garde les affiches en cache local, puis lance la lecture avec VLC en plein écran quand il est disponible, avec sous-titre détecté automatiquement.
 
-L'application est pensée pour rester simple et locale: les fichiers vidéo restent sur la machine, la base de données est un fichier SQLite local, et les affiches téléchargées sont stockées dans `data/posters/`.
+L'application conserve ses données localement: les vidéos restent dans le dossier choisi, la médiathèque est enregistrée dans une base SQLite et les affiches sont mises en cache sur la machine. Le dossier de stockage dépend du mode de lancement et du système (voir [Données locales](#données-locales)). Une connexion Internet est utilisée pour récupérer les métadonnées et les affiches depuis OMDb/TMDb.
 
 ## Aperçu
 
@@ -34,7 +34,7 @@ L'application est pensée pour rester simple et locale: les fichiers vidéo rest
 - Édition commune des métadonnées de série sans modifier les titres des épisodes.
 - Choix persistant des sources de métadonnées dans `Options avancées`.
 - Si OMDb et TMDb sont sélectionnés ensemble, TMDb est essayé en premier puis OMDb sert de secours.
-- Cache local des affiches dans `data/posters/`.
+- Cache local des affiches dans le sous-dossier `posters/` du dossier de données.
 - Actualisation unique de la médiathèque: ajout des nouveaux fichiers et retrait des fichiers disparus.
 - Sélecteur de thème et vitesse de défilement persistants.
 - Lecture via VLC en plein écran si disponible, sinon lecteur par défaut du système.
@@ -148,12 +148,23 @@ python main.py
 
 ## Données locales
 
+Depuis les sources, les données sont stockées dans `data/` à la racine du projet. Les versions distribuées utilisent les emplacements suivants:
+
+| Système | Dossier de données |
+| --- | --- |
+| Windows | `%APPDATA%\Popcornana` |
+| macOS | `~/Library/Application Support/Popcornana` |
+| Linux | `$XDG_DATA_HOME/Popcornana`, ou `~/.local/share/Popcornana` si cette variable n'est pas définie |
+
+Ce dossier contient:
+
 ```text
 media.db        base SQLite locale
-data/posters/   cache local des affiches
-data/cache/     dossier réservé aux caches futurs
-.env            clés API locales, ignorées par git
+posters/        cache local des affiches
+cache/          dossier réservé aux caches futurs
 ```
+
+Pour un lancement depuis les sources, le fichier `.env` peut contenir les clés API à la racine du projet; il est ignoré par git.
 
 ## Structure du projet
 
