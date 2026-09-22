@@ -1,6 +1,6 @@
 # Popcornana
 
-Version actuelle: **1.0.65**
+Version actuelle: **1.0.66**
 
 Popcornana est une application desktop locale pour organiser une médiathèque de films et séries. Elle scanne un dossier de vidéos, nettoie les noms de fichiers, affiche les médias dans une grille visuelle, récupère des métadonnées depuis OMDb et/ou TMDb, garde les affiches en cache local, puis lance la lecture avec VLC en plein écran quand il est disponible, avec sous-titre détecté automatiquement.
 
@@ -50,7 +50,9 @@ Affiche la médiathèque sous forme de grille, séparée en sections `Films` et 
 
 La sélection d'un média met à jour le panneau de droite avec les détails et le bouton `Visionner`. Un clic sur ce panneau ouvre le zoom fiche, plus lisible, avec résumé scrollable et bouton de lecture.
 
-Un clic droit sur un film ou un épisode permet de lancer une recherche TMDb, une recherche OMDb ou une saisie manuelle du titre, de l'année, du réalisateur, du résumé et de l'affiche. Un clic droit sur une série permet d'appliquer une affiche, une année, un réalisateur et un résumé général aux épisodes sans changer leurs titres. Un clic droit sur un dossier de films permet de l'ouvrir ou de choisir son visuel propre.
+Un clic droit sur un film ou un épisode permet de lancer une recherche TMDb, une recherche OMDb ou une saisie manuelle du titre, de l'année, du réalisateur, du résumé et de l'affiche. Un clic droit sur une série permet d'appliquer une affiche, une année, un réalisateur et un résumé général aux épisodes sans changer leurs titres. Un clic droit sur un dossier de films permet de l'ouvrir, de choisir son visuel propre ou de modifier sa description (résumé, biographie, etc.).
+
+La description du dossier est enregistrée dans le champ `folder_description` de son `Popinfo.txt`, avec les retours à la ligne encodés en JSON, sans modifier le `synopsis` des vidéos. Son visuel est enregistré dans `repocover.jpg`, `.jpeg`, `.png` ou `.webp`, séparément du `cover.*` du film. Ces informations sont relues à l'actualisation et au démarrage pour les dossiers classés « Dossier de films ». Les anciens visuels conservés en cache restent utilisables ; choisir à nouveau un visuel crée sa copie portable.
 
 **Options**
 
@@ -198,17 +200,17 @@ Artefacts produits:
 
 Chaque artefact est accompagné d'un fichier `.sha256` permettant de vérifier son intégrité.
 
-Le workflow est défini dans `.github/workflows/release.yml`. Il peut être lancé manuellement depuis l'onglet Actions de GitHub, ou automatiquement en poussant un tag `v*`.
+Le workflow est défini dans `.github/workflows/release.yml`. Il peut être lancé manuellement depuis l'onglet Actions de GitHub, ou automatiquement lors d'un push sur `main` ou d'un tag `v*`. Chacun de ces lancements construit les artefacts puis publie une release GitHub. Pour pousser sur `main` sans lancer ce workflow, inclure `[skip ci]` dans le message du commit.
 
 Exemple de release:
 
 ```bash
-git tag v1.0.50 main
+git tag v1.0.66 main
 git push origin main
-git push origin v1.0.50
+git push origin v1.0.66
 ```
 
-Sur un tag, GitHub Actions construit les trois artefacts et les ajoute à la release GitHub correspondante.
+GitHub Actions construit les artefacts des trois systèmes et les ajoute à la release GitHub correspondant au fichier `VERSION`.
 
 Pour construire localement sur l'OS courant:
 
@@ -252,6 +254,6 @@ La cible Linux nécessite `appimagetool` dans le `PATH` pour générer l'artefac
 
 ## Version
 
-La version actuelle est `1.0.50`.
+La version actuelle est `1.0.66`.
 
 Voir [CHANGELOG.md](CHANGELOG.md) pour le détail de l'état de la release.

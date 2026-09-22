@@ -4,6 +4,12 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.66] - 2026-09-22
+
+- Description et visuel personnalisés des dossiers de films, conservés dans `Popinfo.txt` et `repocover.*`.
+- Actualisation complète au démarrage, identique à `Options > Actualiser`.
+- Écran de chargement visible au moins trois secondes, jusqu'à la fin de l'actualisation.
+
 ## [1.0.65] - 2026-09-08
 
 - Ajout automatique du nom de l'OS dans les noms des artefacts macOS, par exemple `macos-sonoma-intel` ou `macos-catalina-intel`.

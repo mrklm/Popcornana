@@ -6,7 +6,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPoint, QRect, QSize, QTimer, Qt
+from PySide6.QtCore import QElapsedTimer, QEvent, QPoint, QRect, QSize, QTimer, Qt
 from PySide6.QtGui import QAction, QFont, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -44,6 +45,7 @@ from app.scanner.name_cleaner import is_video_file
 from app.scanner.video_scanner import category_for_path, scan_videos
 from app.tmdb.client import TmdbClient, apply_tmdb_result
 from app.utils.paths import POSTERS_DIR, ensure_data_dirs, resource_path
+from app.utils.folder_metadata import folder_cover, read_folder_description, write_folder_cover, write_folder_description
 from app.utils.player import open_media
 from app.version import APP_VERSION
 
@@ -145,6 +147,8 @@ class LibraryEntry:
     title: str
     items: list[MediaItem]
     folder_path: str | None = None
+    folder_description: str = ""
+    folder_poster: str | None = None
 
 
 class MainWindow(QMainWindow):
@@ -607,17 +611,19 @@ class MainWindow(QMainWindow):
         self.update_sources_label()
         self.refresh_current_folder()
 
-    def refresh_current_folder(self) -> None:
+    def refresh_current_folder(self, *, interactive: bool = True) -> None:
         sources = self.repository.list_media_sources()
         if not sources:
-            QMessageBox.information(self, "Popcornana", "Ajoute d'abord un dossier de médias.")
+            if interactive:
+                QMessageBox.information(self, "Popcornana", "Ajoute d'abord un dossier de médias.")
             return
 
         available_roots = [Path(source).expanduser() for source in sources if Path(source).expanduser().exists()]
         if not available_roots:
             self.refresh_library()
             self.update_sources_label()
-            QMessageBox.information(self, "Popcornana", "Aucune source n'est disponible pour le moment.")
+            if interactive:
+                QMessageBox.information(self, "Popcornana", "Aucune source n'est disponible pour le moment.")
             return
 
         self.folder_categories = self.repository.list_folder_categories()
@@ -1111,6 +1117,9 @@ class MainWindow(QMainWindow):
             poster_action = QAction("Choisir un visuel", self)
             poster_action.triggered.connect(lambda: self.choose_movie_folder_poster(entry))
             menu.addAction(poster_action)
+            description_action = QAction("Modifier la description", self)
+            description_action.triggered.connect(lambda: self.edit_movie_folder_description(entry))
+            menu.addAction(description_action)
             menu.exec(self.grid.mapToGlobal(position))
             return
         if entry.kind == "series":
@@ -1159,11 +1168,35 @@ class MainWindow(QMainWindow):
         )
         if not filename:
             return
-        saved_poster = save_manual_poster(Path(filename))
-        poster_path = str(saved_poster.relative_to(POSTERS_DIR))
+        try:
+            saved_poster = write_folder_cover(Path(entry.folder_path), Path(filename))
+        except (OSError, ValueError) as error:
+            QMessageBox.warning(self, "Visuel du dossier", f"Impossible d'enregistrer le visuel : {error}")
+            return
+        poster_path = str(saved_poster)
         self.repository.set_folder_poster(entry.folder_path, poster_path)
         self.refresh_library()
         self.statusBar().showMessage("Visuel du dossier de films enregistré.")
+
+    def edit_movie_folder_description(self, entry: LibraryEntry) -> None:
+        if not entry.folder_path:
+            return
+        description, accepted = QInputDialog.getMultiLineText(
+            self, "Description du dossier", "Résumé, biographie ou présentation :", entry.folder_description
+        )
+        if not accepted:
+            return
+        try:
+            write_folder_description(Path(entry.folder_path), description.strip())
+        except OSError as error:
+            QMessageBox.warning(self, "Description du dossier", f"Impossible d'enregistrer la description : {error}")
+            return
+        self.refresh_library()
+        for row, candidate in enumerate(self.entries):
+            if candidate.kind == "movie_folder" and candidate.folder_path == entry.folder_path:
+                self.grid.setCurrentRow(row)
+                break
+        self.statusBar().showMessage("Description du dossier enregistrée.")
 
     def close_library_folder(self) -> None:
         self.current_series_title = None
@@ -1210,7 +1243,7 @@ class MainWindow(QMainWindow):
             movie_titles += f"\n- ... {len(entry.items) - 20} autre(s) film(s)"
         self.title_label.setText(entry.title)
         self.meta_label.setText(f"Dossier de films | {len(entry.items)} film(s)")
-        self.overview_label.setText(movie_titles or "Aucun film dans ce dossier.")
+        self.overview_label.setText(entry.folder_description or movie_titles or "Aucun film dans ce dossier.")
         self.path_label.setText(entry.folder_path or "")
         self.play_button.setText("Ouvrir le dossier")
         self.play_button.setEnabled(True)
@@ -1256,8 +1289,13 @@ class MainWindow(QMainWindow):
         movie_folder_entries: list[LibraryEntry] = []
         for folder_path, group_items in movie_folder_groups.items():
             group_items.sort(key=lambda item: item.title.casefold())
+            portable_poster = folder_cover(Path(folder_path))
             movie_folder_entries.append(
-                LibraryEntry("movie_folder", movie_folder_titles[folder_path], group_items, folder_path)
+                LibraryEntry(
+                    "movie_folder", movie_folder_titles[folder_path], group_items, folder_path,
+                    read_folder_description(Path(folder_path)),
+                    str(portable_poster) if portable_poster else self.folder_posters.get(folder_path),
+                )
             )
 
         movie_entries = [*movie_folder_entries, *movies]
@@ -1341,7 +1379,7 @@ class MainWindow(QMainWindow):
 
     def _icon_for_entry(self, entry: LibraryEntry) -> QIcon:
         if entry.kind == "movie_folder":
-            poster_path = self.folder_posters.get(entry.folder_path or "")
+            poster_path = entry.folder_poster
             poster = local_poster_path(poster_path)
             if poster and poster.exists():
                 return QIcon(str(poster))
@@ -1366,7 +1404,7 @@ class MainWindow(QMainWindow):
         self.poster_label.setPixmap(pixmap)
 
     def _set_detail_poster_for_movie_folder(self, entry: LibraryEntry, fallback_item: MediaItem) -> None:
-        poster_path = self.folder_posters.get(entry.folder_path or "")
+        poster_path = entry.folder_poster
         poster = local_poster_path(poster_path)
         if poster and poster.exists():
             pixmap = QPixmap(str(poster)).scaled(self.poster_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
@@ -1521,7 +1559,7 @@ class FullscreenEntryDialog(QDialog):
         poster_label.setObjectName("fullscreenPoster")
         poster_label.setFixedSize(126, 189)
         poster_label.setAlignment(Qt.AlignCenter)
-        poster = local_poster_path(entry.items[0].poster_path if entry.items else None)
+        poster = local_poster_path(entry.folder_poster or (entry.items[0].poster_path if entry.items else None))
         if poster and poster.exists():
             pixmap = QPixmap(str(poster)).scaled(126, 189, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             poster_label.setPixmap(pixmap)
@@ -1577,7 +1615,7 @@ class FullscreenEntryDialog(QDialog):
         return_button = QPushButton("Retour à la liste")
         return_button.setMinimumHeight(39)
         return_button.clicked.connect(self.accept)
-        watch_button = QPushButton("Visionner")
+        watch_button = QPushButton("Ouvrir le dossier" if entry.kind == "movie_folder" else "Visionner")
         watch_button.setMinimumHeight(39)
         watch_button.setEnabled(bool(entry.items))
         watch_button.clicked.connect(self.watch_entry)
@@ -1604,6 +1642,10 @@ class FullscreenEntryDialog(QDialog):
         self.move(frame.topLeft())
 
     def watch_entry(self) -> None:
+        if self.entry.kind == "movie_folder":
+            self.accept()
+            self.parent().open_movie_folder(self.entry)
+            return
         if not self.entry.items:
             return
         open_media(self.entry.items[0].filepath)
@@ -2097,9 +2139,17 @@ def create_portable_metadata_files(item: MediaItem, force: bool = False, require
     created = 0
     folder = item.filepath.parent
     info_path = folder / PORTABLE_INFO_FILENAME
-    if not info_path.exists():
+    try:
+        existing_text = info_path.read_text(encoding="utf-8") if info_path.exists() else ""
+    except OSError:
+        return created
+    folder_only = bool(existing_text) and all(
+        not line.strip() or line.startswith("folder_description:") for line in existing_text.splitlines()
+    )
+    if not info_path.exists() or folder_only:
         try:
-            info_path.write_text(portable_info_text(item), encoding="utf-8")
+            prefix = existing_text.rstrip("\n") + "\n" if folder_only else ""
+            info_path.write_text(prefix + portable_info_text(item), encoding="utf-8")
             created += 1
         except OSError:
             return created
@@ -2477,6 +2527,8 @@ def needs_metadata_update(item: MediaItem) -> bool:
 
 
 def fullscreen_meta_text(entry: LibraryEntry) -> str:
+    if entry.kind == "movie_folder":
+        return f"Dossier de films | {len(entry.items)} film(s)"
     if entry.kind == "series":
         reference_item = entry.items[0]
         seasons = sorted({item.season for item in entry.items if item.season})
@@ -2507,6 +2559,8 @@ def fullscreen_meta_text(entry: LibraryEntry) -> str:
 
 
 def fullscreen_overview_text(entry: LibraryEntry) -> str:
+    if entry.kind == "movie_folder":
+        return entry.folder_description or "\n".join(f"- {item.title}" for item in entry.items) or "Aucun film dans ce dossier."
     if not entry.items:
         return "Résumé non disponible."
     return entry.items[0].overview or "Résumé non disponible."
@@ -2876,6 +2930,7 @@ def run() -> None:
     window = MainWindow()
     theme_name = window.repository.get_setting("theme") or DEFAULT_THEME
     startup = StartupDialog(THEMES.get(theme_name, THEMES[DEFAULT_THEME]), window)
+    startup_elapsed = QElapsedTimer()
 
     def apply_startup_window_state() -> None:
         if sys.platform == "darwin":
@@ -2887,26 +2942,25 @@ def run() -> None:
         window.activateWindow()
 
     def finish_startup() -> None:
+        remaining_ms = 3000 - startup_elapsed.elapsed()
+        if remaining_ms > 0:
+            QTimer.singleShot(remaining_ms, finish_startup)
+            return
         startup.close()
         apply_startup_window_state()
 
     def refresh_during_startup() -> None:
         startup.set_status("scan en cours...")
         QApplication.processEvents()
-        removed = 0
-        for source in window.repository.list_media_sources():
-            root = Path(source).expanduser()
-            if root.exists():
-                removed += window.repository.delete_missing_media(root)
-        window.refresh_library()
-        if removed:
-            startup.set_status(f"{len(window.items)} média(s), {removed} retiré(s)")
-        else:
-            startup.set_status(f"{len(window.items)} média(s) dans la bibliothèque")
+        try:
+            window.refresh_current_folder(interactive=False)
+            startup.set_status("Bibliothèque actualisée.")
+        finally:
+            finish_startup()
 
     window.show()
     startup.show_centered_over_parent()
+    startup_elapsed.start()
     QTimer.singleShot(0, apply_startup_window_state)
     QTimer.singleShot(100, refresh_during_startup)
-    QTimer.singleShot(5000, finish_startup)
     sys.exit(app.exec())
