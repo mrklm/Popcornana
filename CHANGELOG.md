@@ -4,6 +4,13 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.69] - 2026-09-23
+
+- Fiche de lecture plus compacte, boutons agrandis, « Visionner » présélectionné et navigation gauche/droite en boucle.
+- Explication de « Synchro autorisée » dans la gestion des sources et export des fiches connues lors de son activation.
+- Éditions manuelles synchronisées uniquement sur les sources autorisées, avec préservation de la description du dossier et sauvegardes `.bak` avant remplacement.
+- Écritures portables préparées dans des fichiers temporaires ; enrichissements automatiques sans écrasement des fiches existantes.
+
 ## [1.0.68] - 2026-09-23
 
 - Plein écran via F11 et option de plein écran automatique au démarrage, activée par défaut.

@@ -1,7 +1,7 @@
 """Portable folder metadata, kept separate from the movies in the same folder."""
 
 import json
-import shutil
+from app.utils.safe_files import atomic_write, atomic_copy
 from pathlib import Path
 
 
@@ -35,7 +35,7 @@ def write_folder_description(folder: Path, description: str) -> None:
     preserved = [line for line in lines[:header_end] if not line.startswith("folder_description:")]
     preserved.extend(lines[header_end:])
     header = "folder_description: " + json.dumps(description, ensure_ascii=False) + "\n"
-    path.write_text(header + "".join(preserved), encoding="utf-8")
+    atomic_write(path, (header + "".join(preserved)).encode("utf-8"))
 
 
 def folder_cover(folder: Path) -> Path | None:
@@ -49,9 +49,10 @@ def write_folder_cover(folder: Path, source: Path) -> Path:
         raise ValueError("Format de visuel non pris en charge.")
     target = folder / ("repocover" + extension)
     if source.resolve() != target.resolve():
-        shutil.copyfile(source, target)
+        atomic_copy(source, target)
     for ext in COVER_EXTENSIONS:
         previous = folder / ("repocover" + ext)
         if previous != target and previous.exists():
+            atomic_copy(previous, previous.with_name(previous.name + ".bak"))
             previous.unlink()
     return target

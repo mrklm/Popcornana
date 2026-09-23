@@ -48,6 +48,7 @@ from app.tmdb.client import TmdbClient, apply_tmdb_result
 from app.utils.paths import POSTERS_DIR, ensure_data_dirs, resource_path
 from app.utils.folder_metadata import folder_cover, read_folder_description, write_folder_cover, write_folder_description
 from app.utils.player import open_media
+from app.utils.safe_files import atomic_write, atomic_copy
 from app.version import APP_VERSION
 
 
@@ -781,11 +782,44 @@ class MainWindow(QMainWindow):
             return
         for source in dialog.removed_sources():
             self.repository.remove_media_source(source)
+        activated = []
         for source, allowed in dialog.sync_choices().items():
-            write_source_marker(Path(source).expanduser(), allowed)
+            root = Path(source).expanduser()
+            was_allowed = source_sync_allowed(root)
+            try:
+                write_source_marker(root, allowed)
+            except OSError as error:
+                QMessageBox.warning(self, "Synchronisation", f"Impossible d'enregistrer l'autorisation pour {root} : {error}")
+                continue
+            if allowed and not was_allowed:
+                activated.append(root)
+        exported = 0
+        for item in self.repository.list_media():
+            if any(item.filepath.is_relative_to(root) for root in activated):
+                exported += create_portable_metadata_files(item, force=True)
+        for folder_path, poster_path in self.repository.list_folder_posters().items():
+            folder = Path(folder_path)
+            if any(folder.is_relative_to(root) for root in activated) and source_sync_allowed_for_path(folder):
+                poster = local_poster_path(poster_path)
+                if folder.exists() and not folder_cover(folder) and poster and poster.exists():
+                    try:
+                        write_folder_cover(folder, poster)
+                    except OSError as error:
+                        QMessageBox.warning(self, "Synchronisation", str(error))
+        for folder_path in self.repository.list_folder_categories():
+            folder = Path(folder_path)
+            description = self.repository.get_setting("folder_description:" + folder_path)
+            if (description is not None and folder.exists()
+                    and any(folder.is_relative_to(root) for root in activated)
+                    and source_sync_allowed_for_path(folder)
+                    and not (folder / PORTABLE_INFO_FILENAME).exists()):
+                try:
+                    write_folder_description(folder, description)
+                except OSError as error:
+                    QMessageBox.warning(self, "Synchronisation", str(error))
         self.refresh_library()
         self.update_sources_label()
-        self.statusBar().showMessage("Sources mises à jour.")
+        self.statusBar().showMessage(f"Sources mises à jour. {exported} fichier(s) portable(s) ajouté(s).")
 
     def manage_categories(self) -> None:
         sources = self.repository.list_media_sources()
@@ -865,7 +899,7 @@ class MainWindow(QMainWindow):
                 local_synced += 1
                 portable_files_created += created
             if item.metadata_locked:
-                portable_files_created += create_portable_metadata_files(item, force=True, require_sync=False)
+                portable_files_created += create_portable_metadata_files(item, force=True)
                 skipped_locked += 1
                 continue
             if not needs_metadata_update(item):
@@ -991,12 +1025,13 @@ class MainWindow(QMainWindow):
             return
         dialog = MetadataMatchDialog("TMDb", self.current_item, results, self)
         if dialog.exec() == QDialog.Accepted and dialog.selected_result:
+            previous_poster = self.current_item.poster_path
             item = apply_tmdb_result(self.current_item, self.tmdb.with_director(dialog.selected_result))
             item.metadata_locked = True
             if item.poster_path:
                 self.tmdb.download_poster(item.poster_path)
             self.repository.upsert_media(item)
-            create_portable_metadata_files(item, force=True, require_sync=False)
+            create_portable_metadata_files(item, force=True, update=True, replace_cover=item.poster_path != previous_poster)
             self.refresh_library()
 
     def search_omdb_current(self) -> None:
@@ -1024,7 +1059,7 @@ class MainWindow(QMainWindow):
                 item.poster_path = previous_poster
             item.metadata_locked = True
             self.repository.upsert_media(item)
-            create_portable_metadata_files(item, force=True, require_sync=False)
+            create_portable_metadata_files(item, force=True, update=True, replace_cover=item.poster_path != previous_poster)
             self.refresh_library()
 
     def edit_metadata_current(self) -> None:
@@ -1043,7 +1078,7 @@ class MainWindow(QMainWindow):
             saved_poster = save_manual_poster(dialog.poster_path)
             item.poster_path = str(saved_poster.relative_to(POSTERS_DIR))
         self.repository.upsert_media(item)
-        created = create_portable_metadata_files(item, force=True, require_sync=False)
+        created = create_portable_metadata_files(item, force=True, update=True, replace_cover=bool(dialog.poster_path))
         self.refresh_library()
         if created:
             self.statusBar().showMessage(f"{created} fichier(s) portable(s) créé(s).")
@@ -1070,7 +1105,7 @@ class MainWindow(QMainWindow):
                 item.poster_path = poster_path
             item.metadata_locked = True
             self.repository.upsert_media(item)
-            portable_files_created += create_portable_metadata_files(item, force=True, require_sync=False)
+            portable_files_created += create_portable_metadata_files(item, force=True, update=True, replace_cover=bool(dialog.poster_path))
         self.refresh_library()
         message = f"{updated_count} épisode(s) de la série mis à jour."
         if portable_files_created:
@@ -1290,7 +1325,8 @@ class MainWindow(QMainWindow):
         if not filename:
             return
         try:
-            saved_poster = write_folder_cover(Path(entry.folder_path), Path(filename))
+            saved_poster = (write_folder_cover(Path(entry.folder_path), Path(filename))
+                            if source_sync_allowed_for_path(Path(entry.folder_path)) else save_manual_poster(Path(filename)))
         except (OSError, ValueError) as error:
             QMessageBox.warning(self, "Visuel du dossier", f"Impossible d'enregistrer le visuel : {error}")
             return
@@ -1312,7 +1348,9 @@ class MainWindow(QMainWindow):
             return
         description = dialog.textValue()
         try:
-            write_folder_description(Path(entry.folder_path), description.strip())
+            self.repository.set_setting("folder_description:" + entry.folder_path, description.strip())
+            if source_sync_allowed_for_path(Path(entry.folder_path)):
+                write_folder_description(Path(entry.folder_path), description.strip())
         except OSError as error:
             QMessageBox.warning(self, "Description du dossier", f"Impossible d'enregistrer la description : {error}")
             return
@@ -1420,11 +1458,12 @@ class MainWindow(QMainWindow):
         for folder_path, group_items in movie_folder_groups.items():
             group_items.sort(key=lambda item: item.title.casefold())
             portable_poster = folder_cover(Path(folder_path))
+            local_description = self.repository.get_setting("folder_description:" + folder_path)
             movie_folder_entries.append(
                 LibraryEntry(
                     "movie_folder", movie_folder_titles[folder_path], group_items, folder_path,
-                    read_folder_description(Path(folder_path)),
-                    str(portable_poster) if portable_poster else self.folder_posters.get(folder_path),
+                    local_description if local_description is not None else read_folder_description(Path(folder_path)),
+                    self.folder_posters.get(folder_path) or (str(portable_poster) if portable_poster else None),
                 )
             )
 
@@ -1693,28 +1732,28 @@ class FullscreenEntryDialog(QDialog):
         screen_geometry = screen.availableGeometry() if screen else None
         screen_width = screen_geometry.width() if screen_geometry else 1280
         screen_height = screen_geometry.height() if screen_geometry else 800
-        window_width = max(736, int(screen_width * 0.575))
-        window_height = max(672, int(screen_height * 0.96))
-        text_width = max(520, window_width - 96)
+        window_width = max(736, int(screen_width * 0.575)) // 2
+        window_height = round(max(672, int(screen_height * 0.96)) * 2 / 3)
+        text_width = window_width - 32
         self.resize(window_width, window_height)
         self._center_on_screen()
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(48, 34, 48, 34)
-        layout.setSpacing(16)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(6)
 
         poster_label = QLabel()
         poster_label.setObjectName("fullscreenPoster")
-        poster_label.setFixedSize(126, 189)
+        poster_label.setFixedSize(72, 108)
         poster_label.setAlignment(Qt.AlignCenter)
         poster = local_poster_path(entry.folder_poster or (entry.items[0].poster_path if entry.items else None))
         if poster and poster.exists():
-            pixmap = QPixmap(str(poster)).scaled(126, 189, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pixmap = QPixmap(str(poster)).scaled(72, 108, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             poster_label.setPixmap(pixmap)
         else:
             poster_label.setText("Aucune affiche")
         layout.addWidget(poster_label, alignment=Qt.AlignHCenter)
-        layout.addSpacing(8)
+        layout.addSpacing(0)
 
         title_label = QLabel(wrap_long_title(entry.title))
         title_label.setObjectName("fullscreenTitle")
@@ -1728,8 +1767,8 @@ class FullscreenEntryDialog(QDialog):
         title_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         title_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         title_scroll.setFixedWidth(text_width)
-        title_scroll.setMinimumHeight(58)
-        title_scroll.setMaximumHeight(122)
+        title_scroll.setMinimumHeight(36)
+        title_scroll.setMaximumHeight(54)
         title_scroll.setWidget(title_label)
         layout.addWidget(title_scroll, alignment=Qt.AlignHCenter)
 
@@ -1738,7 +1777,14 @@ class FullscreenEntryDialog(QDialog):
         meta_label.setWordWrap(True)
         meta_label.setAlignment(Qt.AlignLeft)
         meta_label.setFixedWidth(text_width)
-        layout.addWidget(meta_label, alignment=Qt.AlignHCenter)
+        meta_scroll = QScrollArea()
+        meta_scroll.setObjectName("fullscreenMetaScroll")
+        meta_scroll.setFrameShape(QScrollArea.NoFrame)
+        meta_scroll.setWidgetResizable(True)
+        meta_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        meta_scroll.setFixedSize(text_width, 48)
+        meta_scroll.setWidget(meta_label)
+        layout.addWidget(meta_scroll, alignment=Qt.AlignHCenter)
 
         overview_label = QLabel(fullscreen_overview_text(entry))
         overview_label.setObjectName("fullscreenOverview")
@@ -1753,22 +1799,25 @@ class FullscreenEntryDialog(QDialog):
         overview_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         overview_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         overview_scroll.setFixedWidth(text_width)
-        overview_scroll.setMinimumHeight(120)
+        overview_scroll.setMinimumHeight(60)
         overview_scroll.setWidget(overview_label)
         layout.addWidget(overview_scroll, stretch=1, alignment=Qt.AlignHCenter)
 
         button_row = QHBoxLayout()
         button_row.setContentsMargins(0, 0, 0, 0)
-        button_row.setSpacing(16)
+        button_row.setSpacing(8)
         return_button = QPushButton("Retour à la liste")
-        return_button.setMinimumHeight(39)
+        self.return_button = return_button
+        return_button.setFixedHeight(64)
         return_button.clicked.connect(self.accept)
         back_shortcut = QShortcut(QKeySequence(Qt.Key_Back), self)
         back_shortcut.setAutoRepeat(False)
         back_shortcut.activated.connect(self.accept)
         watch_button = QPushButton("Ouvrir le dossier" if entry.kind == "movie_folder" else "Visionner")
-        watch_button.setMinimumHeight(39)
+        watch_button.setFixedHeight(64)
         watch_button.setEnabled(bool(entry.items))
+        self.watch_button = watch_button
+        watch_button.setDefault(True)
         watch_button.clicked.connect(self.watch_entry)
         button_row.addWidget(return_button, stretch=1)
         button_row.addWidget(watch_button, stretch=1)
@@ -1776,12 +1825,22 @@ class FullscreenEntryDialog(QDialog):
 
         self.apply_theme()
         self._apply_reading_fonts(title_label, meta_label, overview_label, return_button, watch_button)
-        self._fit_scroll_label(title_scroll, title_label, text_width - 18, 58, 122)
+        self._fit_scroll_label(title_scroll, title_label, text_width - 18, 36, 54)
         self._fit_wrapped_label(meta_label, text_width)
         for widget in [self, *self.findChildren(QWidget)]:
             widget.installEventFilter(self)
 
     def eventFilter(self, watched, event) -> bool:
+        if (
+            event.type() == QEvent.KeyPress
+            and watched in (self.return_button, self.watch_button)
+            and event.key() in (Qt.Key_Left, Qt.Key_Right)
+        ):
+            target = self.return_button if watched is self.watch_button else self.watch_button
+            if target.isEnabled():
+                target.setFocus(Qt.OtherFocusReason)
+                target.setDefault(True)
+            return True
         if event.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease):
             if event.button() in (Qt.RightButton, Qt.BackButton):
                 if event.type() == QEvent.MouseButtonRelease:
@@ -1795,6 +1854,7 @@ class FullscreenEntryDialog(QDialog):
         super().showEvent(event)
         self._center_on_screen()
         QTimer.singleShot(0, self._center_on_screen)
+        QTimer.singleShot(0, lambda: self.watch_button.setFocus(Qt.OtherFocusReason))
 
     def _center_on_screen(self) -> None:
         screen = self.screen() or QApplication.primaryScreen()
@@ -1847,21 +1907,21 @@ class FullscreenEntryDialog(QDialog):
         watch_button: QPushButton,
     ) -> None:
         title_font = QFont()
-        title_font.setPointSize(30)
+        title_font.setPointSize(18)
         title_font.setBold(True)
         title_label.setFont(title_font)
 
         meta_font = QFont()
-        meta_font.setPointSize(20)
+        meta_font.setPointSize(11)
         meta_font.setBold(True)
         meta_label.setFont(meta_font)
 
         overview_font = QFont()
-        overview_font.setPointSize(22)
+        overview_font.setPointSize(12)
         overview_label.setFont(overview_font)
 
         button_font = QFont()
-        button_font.setPointSize(20)
+        button_font.setPointSize(11)
         button_font.setBold(True)
         return_button.setFont(button_font)
         watch_button.setFont(button_font)
@@ -1880,21 +1940,23 @@ class FullscreenEntryDialog(QDialog):
             }}
             QLabel#fullscreenTitle {{
                 color: {self.theme["FG"]};
-                font-size: 35px;
+                font-size: 22px;
                 font-weight: 800;
             }}
-            QScrollArea#fullscreenTitleScroll {{
+            QScrollArea#fullscreenTitleScroll, QScrollArea#fullscreenMetaScroll,
+            QScrollArea#fullscreenMetaScroll > QWidget,
+            QScrollArea#fullscreenMetaScroll > QWidget > QWidget {{
                 background: transparent;
                 border: none;
             }}
             QLabel#fullscreenMeta {{
                 color: {self.theme["ACCENT"]};
-                font-size: 22px;
+                font-size: 14px;
                 font-weight: 700;
             }}
             QLabel#fullscreenOverview {{
                 color: {self.theme["FG"]};
-                font-size: 25px;
+                font-size: 16px;
                 line-height: 130%;
             }}
             QScrollArea#fullscreenOverviewScroll {{
@@ -1906,12 +1968,13 @@ class FullscreenEntryDialog(QDialog):
                 color: {self.theme["FIELD_FG"]};
                 border: 1px solid {self.theme["ACCENT"]};
                 border-radius: 6px;
-                padding: 10px 34px;
-                min-height: 29px;
-                font-size: 22px;
+                padding: 6px 8px;
+                min-height: 50px;
+                max-height: 50px;
+                font-size: 14px;
                 font-weight: 700;
             }}
-            QPushButton:hover {{
+            QPushButton:hover, QPushButton:focus {{
                 background: {self.theme["ACCENT"]};
                 color: {self.theme["BG"]};
             }}
@@ -1977,17 +2040,27 @@ class MediaSourcesDialog(QDialog):
         for row, source in enumerate(sources):
             self._add_source_row(row, source)
 
+        footer_layout = QHBoxLayout()
+        sync_hint = QLabel(
+            "<b>ATTENTION:</b> Cochez <b>Synchro autorisée</b> si vous souhaitez que Popcornana "
+            "enregistre les affiches et descriptions dans les dossiers sources."
+        )
+        sync_hint.setWordWrap(True)
+        footer_layout.addWidget(sync_hint, stretch=1)
+        controls_layout = QVBoxLayout()
         actions_layout = QHBoxLayout()
         actions_layout.addStretch()
         remove_button = QPushButton("Supprimer la source")
         remove_button.clicked.connect(self.remove_selected_sources)
         actions_layout.addWidget(remove_button)
-        layout.addLayout(actions_layout)
+        controls_layout.addLayout(actions_layout)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        controls_layout.addWidget(buttons)
+        footer_layout.addLayout(controls_layout)
+        layout.addLayout(footer_layout)
 
     def _add_source_item(self, source: str) -> None:
         row = self.table.rowCount()
@@ -2293,10 +2366,10 @@ def local_poster_path(poster_path: str | None) -> Path | None:
     return POSTERS_DIR / poster_path.lstrip("/")
 
 
-def create_portable_metadata_files(item: MediaItem, force: bool = False, require_sync: bool = True) -> int:
+def create_portable_metadata_files(item: MediaItem, force: bool = False, *, update: bool = False, replace_cover: bool = False) -> int:
     if not item.filepath.exists() or (not force and not has_portable_metadata(item)):
         return 0
-    if require_sync and not source_sync_allowed_for_path(item.filepath.parent):
+    if not source_sync_allowed_for_path(item.filepath.parent):
         return 0
 
     created = 0
@@ -2309,22 +2382,31 @@ def create_portable_metadata_files(item: MediaItem, force: bool = False, require
     folder_only = bool(existing_text) and all(
         not line.strip() or line.startswith("folder_description:") for line in existing_text.splitlines()
     )
-    if not info_path.exists() or folder_only:
+    if not info_path.exists() or folder_only or update:
         try:
-            prefix = existing_text.rstrip("\n") + "\n" if folder_only else ""
-            info_path.write_text(prefix + portable_info_text(item), encoding="utf-8")
-            created += 1
+            headers = existing_text.split("\nsynopsis:", 1)[0].splitlines()
+            prefix = "".join(line + "\n" for line in headers if line.startswith("folder_description:"))
+            # A shared folder can hold several episodes: do not overwrite another file's sheet.
+            owner = parse_portable_info(folder).get("file")
+            if not owner or owner == item.filepath.name or folder_only:
+                atomic_write(info_path, (prefix + portable_info_text(item)).encode("utf-8"))
+                created += 1
         except OSError:
             return created
 
-    if not existing_portable_cover(folder):
+    if not existing_portable_cover(folder) or replace_cover:
         poster = local_poster_path(item.poster_path)
         if poster and poster.exists():
             suffix = poster.suffix.lower()
             if suffix not in PORTABLE_COVER_EXTENSIONS:
                 suffix = ".jpg"
             try:
-                shutil.copy2(poster, folder / f"{PORTABLE_COVER_STEM}{suffix}")
+                target = folder / f"{PORTABLE_COVER_STEM}{suffix}"
+                old_cover = existing_portable_cover(folder)
+                atomic_copy(poster, target)
+                if replace_cover and old_cover and old_cover != target:
+                    atomic_copy(old_cover, old_cover.with_name(old_cover.name + ".bak"))
+                    old_cover.unlink()
                 created += 1
             except OSError:
                 return created
@@ -2367,10 +2449,7 @@ def write_source_marker(source: Path, sync_allowed: bool) -> None:
             "",
         ]
     )
-    try:
-        (source / SOURCE_MARKER_FILENAME).write_text(text, encoding="utf-8")
-    except OSError:
-        return
+    atomic_write(source / SOURCE_MARKER_FILENAME, text.encode("utf-8"))
 
 
 def source_sync_allowed(source: Path) -> bool:
@@ -2475,7 +2554,7 @@ def synchronize_portable_metadata(item: MediaItem, items: list[MediaItem]) -> tu
 
     if missing_info and duplicate_info.exists():
         try:
-            shutil.copy2(duplicate_info, folder / PORTABLE_INFO_FILENAME)
+            atomic_copy(duplicate_info, folder / PORTABLE_INFO_FILENAME)
         except OSError:
             return changed, created
         values = parse_portable_info(folder)
@@ -2483,7 +2562,7 @@ def synchronize_portable_metadata(item: MediaItem, items: list[MediaItem]) -> tu
     if missing_cover and duplicate_cover:
         target_cover = folder / f"{PORTABLE_COVER_STEM}{duplicate_cover.suffix.lower()}"
         try:
-            shutil.copy2(duplicate_cover, target_cover)
+            atomic_copy(duplicate_cover, target_cover)
         except OSError:
             return changed, created
         cover = target_cover

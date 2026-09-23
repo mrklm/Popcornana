@@ -1,6 +1,6 @@
 # Popcornana
 
-Version actuelle: **1.0.68**
+Version actuelle: **1.0.69**
 
 Popcornana est une application desktop locale pour organiser une médiathèque de films et séries. Elle scanne un dossier de vidéos, nettoie les noms de fichiers, affiche les médias dans une grille visuelle, récupère des métadonnées depuis OMDb et/ou TMDb, garde les affiches en cache local, puis lance la lecture avec VLC en plein écran quand il est disponible, avec sous-titre détecté automatiquement.
 
@@ -28,7 +28,7 @@ L'application conserve ses données localement: les vidéos restent dans le doss
 - Résumés longs contenus dans des zones scrollables.
 - Enrichissement automatique via OMDb.
 - Recherches contextuelles TMDb/OMDb et édition manuelle des métadonnées depuis la grille.
-- Création de `cover.*` et `Popinfo.txt` dans le dossier du film quand une fiche est enrichie sur une source autorisée, sans écraser les fichiers existants.
+- Création de `cover.*` et `Popinfo.txt` dans le dossier du film quand une fiche est enrichie sur une source autorisée, sans écraser les fichiers existants lors des enrichissements automatiques.
 - Lecture automatique de `Popinfo.txt` et `cover.*` pendant `Actualiser`, pratique pour transporter une médiathèque entre plusieurs ordinateurs.
 - Synchronisation des métadonnées entre sources avant les appels TMDb/OMDb quand un doublon local fiable possède déjà `cover.*` ou `Popinfo.txt`.
 - Édition commune des métadonnées de série sans modifier les titres des épisodes.
@@ -52,7 +52,7 @@ La sélection d'un média met à jour le panneau de droite avec les détails et 
 
 Un clic droit sur un film ou un épisode permet de lancer une recherche TMDb, une recherche OMDb ou une saisie manuelle du titre, de l'année, du réalisateur, du résumé et de l'affiche. Un clic droit sur une série permet d'appliquer une affiche, une année, un réalisateur et un résumé général aux épisodes sans changer leurs titres. Un clic droit sur un dossier de films permet de l'ouvrir, de choisir son visuel propre ou de modifier sa description (résumé, biographie, etc.).
 
-La description du dossier est enregistrée dans le champ `folder_description` de son `Popinfo.txt`, avec les retours à la ligne encodés en JSON, sans modifier le `synopsis` des vidéos. Son visuel est enregistré dans `repocover.jpg`, `.jpeg`, `.png` ou `.webp`, séparément du `cover.*` du film. Ces informations sont relues à l'actualisation et au démarrage pour les dossiers classés « Dossier de films ». Les anciens visuels conservés en cache restent utilisables ; choisir à nouveau un visuel crée sa copie portable.
+Sur les sources autorisées, la description du dossier est enregistrée dans le champ `folder_description` de son `Popinfo.txt`, avec les retours à la ligne encodés en JSON, sans modifier le `synopsis` des vidéos. Son visuel est enregistré dans `repocover.jpg`, `.jpeg`, `.png` ou `.webp`, séparément du `cover.*` du film. Ces informations sont relues à l'actualisation et au démarrage pour les dossiers classés « Dossier de films ». Les anciens visuels conservés en cache restent utilisables ; choisir à nouveau un visuel crée sa copie portable si la synchronisation est autorisée. Sinon, les modifications restent locales à Popcornana.
 
 **Options**
 
@@ -73,6 +73,10 @@ Décrit le fonctionnement de Popcornana, donne les adresses pour obtenir les cl�
 ## Métadonnées
 
 Avant d'appeler Internet, `Mettre à jour les fiches` cherche d'abord un doublon local fiable dans les autres sources. Si un dossier équivalent possède déjà `cover.*` ou `Popinfo.txt`, Popcornana copie uniquement les fichiers manquants vers la source cible lorsque sa case `Synchro autorisée` est cochée.
+
+Valider une nouvelle autorisation dans `Gérer les sources` exporte immédiatement les fiches déjà connues vers cette source, en créant les fichiers manquants. Les fichiers existants sont préservés. Une édition manuelle met ensuite à jour la fiche portable et remplace l’affiche uniquement si elle a été changée ; la description propre au dossier est conservée. Sans autorisation de synchronisation, même les éditions manuelles restent locales à Popcornana.
+
+Les remplacements sont préparés dans un fichier temporaire, puis appliqués avec conservation de la version précédente dans un fichier `.bak`. Dans un dossier contenant plusieurs vidéos, un `Popinfo.txt` identifié comme appartenant à une autre vidéo est préservé.
 
 L'autorisation est mémorisée dans `.popcornana-source` à la racine de la source. Ce fichier limite l'écriture aux fichiers de métadonnées portables et conserve la version du format utilisé.
 
@@ -205,9 +209,9 @@ Le workflow est défini dans `.github/workflows/release.yml`. Il peut être lanc
 Exemple de release:
 
 ```bash
-git tag v1.0.68 main
+git tag v1.0.69 main
 git push origin main
-git push origin v1.0.68
+git push origin v1.0.69
 ```
 
 GitHub Actions construit les artefacts des trois systèmes et les ajoute à la release GitHub correspondant au fichier `VERSION`.
@@ -254,6 +258,6 @@ La cible Linux nécessite `appimagetool` dans le `PATH` pour générer l'artefac
 
 ## Version
 
-La version actuelle est `1.0.68`.
+La version actuelle est `1.0.69`.
 
 Voir [CHANGELOG.md](CHANGELOG.md) pour le détail de l'état de la release.
