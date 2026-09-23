@@ -4,6 +4,13 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.67] - 2026-09-23
+
+- Fenêtre de description des dossiers agrandie et séparation médiathèque/détails redimensionnable.
+- Zoom des affiches au clavier (Ctrl +/−) et avec les boutons de la télécommande.
+- Retour depuis les fiches à la télécommande ; appui long dans la grille pour quitter un dossier, appui court conservé pour l’édition.
+- Focus sur les films au démarrage pour naviguer directement avec les flèches.
+
 ## [1.0.66] - 2026-09-22
 
 - Description et visuel personnalisés des dossiers de films, conservés dans `Popinfo.txt` et `repocover.*`.

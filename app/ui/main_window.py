@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QElapsedTimer, QEvent, QPoint, QRect, QSize, QTimer, Qt
-from PySide6.QtGui import QAction, QFont, QIcon, QPixmap
+from PySide6.QtGui import QAction, QContextMenuEvent, QFont, QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSlider,
+    QSplitter,
     QStatusBar,
     QTabWidget,
     QTableWidget,
@@ -167,6 +168,7 @@ class MainWindow(QMainWindow):
         self.current_entry: LibraryEntry | None = None
         self.current_series_title: str | None = None
         self.current_movie_folder_path: str | None = None
+        self.library_zoom = 100
 
         self.setWindowTitle(f"Popcornana {APP_VERSION}")
         if APP_ICON_PATH.exists():
@@ -208,6 +210,9 @@ class MainWindow(QMainWindow):
         self.grid.itemActivated.connect(self.activate_item)
         self.grid.setContextMenuPolicy(Qt.CustomContextMenu)
         self.grid.customContextMenuRequested.connect(self.show_library_context_menu)
+        self._library_right_press = QElapsedTimer()
+        self._library_right_position = QPoint()
+        self.grid.viewport().installEventFilter(self)
 
         self.back_button = QPushButton("Retour")
         self.back_button.clicked.connect(self.close_library_folder)
@@ -264,7 +269,7 @@ class MainWindow(QMainWindow):
 
         details = QWidget()
         details.setObjectName("detailsPanel")
-        details.setFixedWidth(390)
+        details.setMinimumWidth(260)
         details.setCursor(Qt.PointingHandCursor)
         details.installEventFilter(self)
         details_layout = QVBoxLayout(details)
@@ -288,9 +293,32 @@ class MainWindow(QMainWindow):
         library_layout.setSpacing(8)
         library_layout.addWidget(library_header)
         library_layout.addWidget(self.grid, stretch=1)
-        general_layout.addWidget(library_panel, stretch=1)
-        general_layout.addWidget(details)
+        library_panel.setMinimumWidth(240)
+        self.library_splitter = QSplitter(Qt.Horizontal)
+        self.library_splitter.setObjectName("librarySplitter")
+        self.library_splitter.setChildrenCollapsible(False)
+        self.library_splitter.setHandleWidth(10)
+        self.library_splitter.addWidget(library_panel)
+        self.library_splitter.addWidget(details)
+        self.library_splitter.setStretchFactor(0, 1)
+        self.library_splitter.setStretchFactor(1, 0)
+        self.library_splitter.setSizes([730, 390])
+        self.library_splitter.handle(1).setCursor(Qt.SplitHCursor)
+        self.library_splitter.splitterMoved.connect(lambda _position, _index: self._refresh_grid_layout())
+        general_layout.addWidget(self.library_splitter)
+        for keys, step in (
+            ("Ctrl++", 10), ("Ctrl+=", 10), ("Ctrl+-", -10),
+            (Qt.Key_ZoomIn, 10), (Qt.Key_ZoomOut, -10),
+        ):
+            shortcut = QShortcut(QKeySequence(keys), general_tab)
+            shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(lambda step=step: self.change_library_zoom(step))
         self.tabs.addTab(general_tab, "Général")
+        for keys in (Qt.Key_Back, Qt.Key_Escape):
+            shortcut = QShortcut(QKeySequence(keys), general_tab)
+            shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+            shortcut.setAutoRepeat(False)
+            shortcut.activated.connect(self.navigate_library_back)
 
         options_tab = QWidget()
         options_tab.setObjectName("optionsTab")
@@ -496,7 +524,28 @@ class MainWindow(QMainWindow):
         self.show_media_count_status()
 
     def eventFilter(self, watched, event) -> bool:
-        if watched.objectName() == "detailsPanel" and event.type() == QEvent.Type.MouseButtonRelease:
+        if watched is self.grid.viewport():
+            if event.type() == QEvent.ContextMenu and event.reason() == QContextMenuEvent.Mouse:
+                # Mouse menus are opened on release so a long press can navigate back.
+                return True
+            if event.type() == QEvent.MouseButtonPress and event.button() == Qt.RightButton:
+                self._library_right_position = event.position().toPoint()
+                self._library_right_press.start()
+                return True
+            if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.RightButton:
+                if self._library_right_press.isValid():
+                    long_press = self._library_right_press.elapsed() >= 650
+                    self._library_right_press.invalidate()
+                    if long_press and (self.current_movie_folder_path or self.current_series_title):
+                        self.navigate_library_back()
+                    else:
+                        self.show_library_context_menu(self._library_right_position)
+                return True
+        if (
+            watched.objectName() == "detailsPanel"
+            and event.type() == QEvent.Type.MouseButtonRelease
+            and event.button() == Qt.LeftButton
+        ):
             self.show_current_entry_fullscreen()
             return True
         return super().eventFilter(watched, event)
@@ -1002,7 +1051,7 @@ class MainWindow(QMainWindow):
                 list_item = QListWidgetItem(self._icon_for_entry(entry), self._label_for_entry(entry))
                 list_item.setTextAlignment(Qt.AlignCenter)
                 list_item.setData(Qt.UserRole, index)
-                list_item.setSizeHint(QSize(184, 318))
+                list_item.setSizeHint(self._library_item_size())
             self.grid.addItem(list_item)
         self._refresh_grid_layout()
         if self.entries:
@@ -1014,16 +1063,30 @@ class MainWindow(QMainWindow):
     def _header_item_width(self) -> int:
         return max(560, self.grid.viewport().width() - 32)
 
+    def _library_item_size(self) -> QSize:
+        scale = self.library_zoom / 100
+        return QSize(round(144 * scale) + 40, round(216 * scale) + 102)
+
+    def change_library_zoom(self, step: int) -> None:
+        zoom = max(50, min(200, self.library_zoom + step))
+        if zoom == self.library_zoom:
+            return
+        self.library_zoom = zoom
+        self.grid.setIconSize(QSize(round(144 * zoom / 100), round(216 * zoom / 100)))
+        self._refresh_grid_layout()
+        current = self.grid.currentItem()
+        if current is not None:
+            self.grid.scrollToItem(current)
+        self.statusBar().showMessage(f"Zoom de la médiathèque : {zoom} %", 2000)
+
     def _refresh_grid_layout(self) -> None:
         if not hasattr(self, "grid"):
             return
         header_width = self._header_item_width()
         for row, entry in enumerate(getattr(self, "entries", [])):
-            if entry.kind != "header":
-                continue
             item = self.grid.item(row)
             if item is not None:
-                item.setSizeHint(QSize(header_width, 104))
+                item.setSizeHint(QSize(header_width, 104) if entry.kind == "header" else self._library_item_size())
         self.grid.doItemsLayout()
         self.grid.updateGeometries()
         self.grid.viewport().update()
@@ -1075,6 +1138,7 @@ class MainWindow(QMainWindow):
         theme_name = self.repository.get_setting("theme") or DEFAULT_THEME
         dialog = FullscreenEntryDialog(self.current_entry, THEMES.get(theme_name, THEMES[DEFAULT_THEME]), self)
         dialog.exec()
+        self.grid.setFocus()
 
     def play_current(self) -> None:
         if self.current_entry and self.current_entry.kind == "movie_folder":
@@ -1181,11 +1245,15 @@ class MainWindow(QMainWindow):
     def edit_movie_folder_description(self, entry: LibraryEntry) -> None:
         if not entry.folder_path:
             return
-        description, accepted = QInputDialog.getMultiLineText(
-            self, "Description du dossier", "Résumé, biographie ou présentation :", entry.folder_description
-        )
-        if not accepted:
+        dialog = QInputDialog(self)
+        dialog.setWindowTitle("Description du dossier")
+        dialog.setLabelText("Résumé, biographie ou présentation :")
+        dialog.setOption(QInputDialog.UsePlainTextEditForTextInput)
+        dialog.setTextValue(entry.folder_description)
+        dialog.resize(620, 520)
+        if dialog.exec() != QDialog.Accepted:
             return
+        description = dialog.textValue()
         try:
             write_folder_description(Path(entry.folder_path), description.strip())
         except OSError as error:
@@ -1197,6 +1265,11 @@ class MainWindow(QMainWindow):
                 self.grid.setCurrentRow(row)
                 break
         self.statusBar().showMessage("Description du dossier enregistrée.")
+
+    def navigate_library_back(self) -> None:
+        if self.current_series_title or self.current_movie_folder_path:
+            self.close_library_folder()
+        self.grid.setFocus()
 
     def close_library_folder(self) -> None:
         self.current_series_title = None
@@ -1615,6 +1688,9 @@ class FullscreenEntryDialog(QDialog):
         return_button = QPushButton("Retour à la liste")
         return_button.setMinimumHeight(39)
         return_button.clicked.connect(self.accept)
+        back_shortcut = QShortcut(QKeySequence(Qt.Key_Back), self)
+        back_shortcut.setAutoRepeat(False)
+        back_shortcut.activated.connect(self.accept)
         watch_button = QPushButton("Ouvrir le dossier" if entry.kind == "movie_folder" else "Visionner")
         watch_button.setMinimumHeight(39)
         watch_button.setEnabled(bool(entry.items))
@@ -1627,6 +1703,18 @@ class FullscreenEntryDialog(QDialog):
         self._apply_reading_fonts(title_label, meta_label, overview_label, return_button, watch_button)
         self._fit_scroll_label(title_scroll, title_label, text_width - 18, 58, 122)
         self._fit_wrapped_label(meta_label, text_width)
+        for widget in [self, *self.findChildren(QWidget)]:
+            widget.installEventFilter(self)
+
+    def eventFilter(self, watched, event) -> bool:
+        if event.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease):
+            if event.button() in (Qt.RightButton, Qt.BackButton):
+                if event.type() == QEvent.MouseButtonRelease:
+                    self.accept()
+                return True
+        if event.type() == QEvent.ContextMenu:
+            return True
+        return super().eventFilter(watched, event)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -2749,6 +2837,14 @@ def build_stylesheet(theme: dict[str, str]) -> str:
             background: {theme["PANEL"]};
             border-radius: 8px;
         }}
+        QSplitter#librarySplitter::handle:horizontal {{
+            background: {theme["PANEL"]};
+            margin: 4px 2px;
+            border-radius: 3px;
+        }}
+        QSplitter#librarySplitter::handle:horizontal:hover {{
+            background: {theme["ACCENT"]};
+        }}
         QTabWidget#mainTabs::pane {{
             background: {theme["BG"]};
             border: none;
@@ -2948,6 +3044,7 @@ def run() -> None:
             return
         startup.close()
         apply_startup_window_state()
+        QTimer.singleShot(0, lambda: window.grid.setFocus(Qt.OtherFocusReason))
 
     def refresh_during_startup() -> None:
         startup.set_status("scan en cours...")
