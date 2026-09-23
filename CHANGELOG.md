@@ -4,6 +4,13 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.68] - 2026-09-23
+
+- Plein écran via F11 et option de plein écran automatique au démarrage, activée par défaut.
+- Option persistante pour afficher ou masquer le panneau de description, visible par défaut.
+- Fenêtre redimensionnable avec panneaux défilants et affiches toujours placées sous les titres de section.
+- Fenêtre d’actualisation sans barre de titre, avec numéro de version discret sous le logo.
+
 ## [1.0.67] - 2026-09-23
 
 - Fenêtre de description des dossiers agrandie et séparation médiathèque/détails redimensionnable.

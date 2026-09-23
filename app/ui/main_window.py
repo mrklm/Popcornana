@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QElapsedTimer, QEvent, QPoint, QRect, QSize, QTimer, Qt
-from PySide6.QtGui import QAction, QContextMenuEvent, QFont, QIcon, QKeySequence, QPixmap, QShortcut
+from PySide6.QtGui import QAction, QColor, QContextMenuEvent, QFont, QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -169,6 +169,7 @@ class MainWindow(QMainWindow):
         self.current_series_title: str | None = None
         self.current_movie_folder_path: str | None = None
         self.library_zoom = 100
+        self._maximized_before_fullscreen = False
 
         self.setWindowTitle(f"Popcornana {APP_VERSION}")
         if APP_ICON_PATH.exists():
@@ -186,6 +187,13 @@ class MainWindow(QMainWindow):
         self._refresh_grid_layout()
 
     def _build_ui(self) -> None:
+        def scrollable_panel(content: QWidget) -> QScrollArea:
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QScrollArea.NoFrame)
+            scroll.setWidget(content)
+            return scroll
+
         page = QWidget()
         page.setObjectName("page")
         page_layout = QVBoxLayout(page)
@@ -194,6 +202,8 @@ class MainWindow(QMainWindow):
 
         self.tabs = QTabWidget()
         self.tabs.setObjectName("mainTabs")
+        fullscreen_shortcut = QShortcut(QKeySequence("F11"), self)
+        fullscreen_shortcut.activated.connect(self.toggle_fullscreen)
 
         self.grid = QListWidget()
         self.grid.setObjectName("libraryGrid")
@@ -299,7 +309,10 @@ class MainWindow(QMainWindow):
         self.library_splitter.setChildrenCollapsible(False)
         self.library_splitter.setHandleWidth(10)
         self.library_splitter.addWidget(library_panel)
-        self.library_splitter.addWidget(details)
+        details_scroll = scrollable_panel(details)
+        details_scroll.setMinimumWidth(280)
+        self.details_scroll = details_scroll
+        self.library_splitter.addWidget(details_scroll)
         self.library_splitter.setStretchFactor(0, 1)
         self.library_splitter.setStretchFactor(1, 0)
         self.library_splitter.setSizes([730, 390])
@@ -455,6 +468,32 @@ class MainWindow(QMainWindow):
         advanced_layout.addLayout(omdb_key_layout)
         options_layout.addWidget(advanced_section)
 
+        fullscreen_section = QWidget()
+        fullscreen_section.setObjectName("optionSection")
+        fullscreen_layout = QVBoxLayout(fullscreen_section)
+        fullscreen_layout.setContentsMargins(16, 16, 16, 16)
+        self.auto_fullscreen_checkbox = QCheckBox("Plein écran automatique à l’ouverture")
+        self.auto_fullscreen_checkbox.setChecked(self.repository.get_setting("auto_fullscreen") != "0")
+        self.auto_fullscreen_checkbox.toggled.connect(
+            lambda checked: self.repository.set_setting("auto_fullscreen", "1" if checked else "0")
+        )
+        fullscreen_layout.addWidget(self.auto_fullscreen_checkbox)
+        fullscreen_hint = QLabel("Appliqué au prochain démarrage. F11 permet de quitter ou d’activer le plein écran.")
+        fullscreen_hint.setWordWrap(True)
+        fullscreen_layout.addWidget(fullscreen_hint)
+        options_layout.addWidget(fullscreen_section)
+
+        details_section = QWidget()
+        details_section.setObjectName("optionSection")
+        details_options_layout = QVBoxLayout(details_section)
+        details_options_layout.setContentsMargins(16, 16, 16, 16)
+        self.show_details_checkbox = QCheckBox("Afficher la description du film (panneau de droite)")
+        self.show_details_checkbox.setChecked(self.repository.get_setting("show_details_panel") != "0")
+        self.details_scroll.setVisible(self.show_details_checkbox.isChecked())
+        self.show_details_checkbox.toggled.connect(self.change_details_visibility)
+        details_options_layout.addWidget(self.show_details_checkbox)
+        options_layout.addWidget(details_section)
+
         theme_section = QWidget()
         theme_section.setObjectName("optionSection")
         theme_layout = QHBoxLayout(theme_section)
@@ -491,7 +530,7 @@ class MainWindow(QMainWindow):
         theme_layout.addWidget(self.scroll_speed_value_label)
         options_layout.addWidget(theme_section)
         options_layout.addStretch()
-        self.tabs.addTab(options_tab, "Options")
+        self.tabs.addTab(scrollable_panel(options_tab), "Options")
 
         help_tab = QWidget()
         help_tab.setObjectName("helpTab")
@@ -511,7 +550,7 @@ class MainWindow(QMainWindow):
         help_text.setOpenExternalLinks(True)
         help_text.setHtml(build_help_html())
         help_layout.addWidget(help_text)
-        self.tabs.addTab(help_tab, "Aide")
+        self.tabs.addTab(scrollable_panel(help_tab), "Aide")
 
         page_layout.addWidget(self.tabs, stretch=1)
         self.setCentralWidget(page)
@@ -523,8 +562,26 @@ class MainWindow(QMainWindow):
         self.setStatusBar(status_bar)
         self.show_media_count_status()
 
+    def change_details_visibility(self, visible: bool) -> None:
+        self.repository.set_setting("show_details_panel", "1" if visible else "0")
+        self.details_scroll.setVisible(visible)
+        QTimer.singleShot(0, self._refresh_grid_layout)
+
+    def toggle_fullscreen(self) -> None:
+        if self.isFullScreen():
+            if self._maximized_before_fullscreen:
+                self.showMaximized()
+            else:
+                self.showNormal()
+        else:
+            self._maximized_before_fullscreen = self.isMaximized()
+            self.showFullScreen()
+
     def eventFilter(self, watched, event) -> bool:
         if watched is self.grid.viewport():
+            if event.type() == QEvent.Resize:
+                # The viewport also changes when a hidden tab is shown or a panel is toggled.
+                QTimer.singleShot(0, self._refresh_grid_layout)
             if event.type() == QEvent.ContextMenu and event.reason() == QContextMenuEvent.Mouse:
                 # Mouse menus are opened on release so a long press can navigate back.
                 return True
@@ -1061,7 +1118,7 @@ class MainWindow(QMainWindow):
             self._show_empty_details()
 
     def _header_item_width(self) -> int:
-        return max(560, self.grid.viewport().width() - 32)
+        return max(1, self.grid.viewport().width() - 2 * self.grid.spacing())
 
     def _library_item_size(self) -> QSize:
         scale = self.library_zoom / 100
@@ -1502,6 +1559,7 @@ class StartupDialog(QDialog):
         self.cancel_requested = False
         self.setWindowTitle("Popcornana")
         self.setModal(True)
+        self.setWindowFlag(Qt.FramelessWindowHint, True)
         self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
         self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
 
@@ -1528,6 +1586,16 @@ class StartupDialog(QDialog):
             image_label.setPixmap(image)
             image_width = image.width()
         image_label.setFixedSize(image_width, image_height)
+        version_label = QLabel(f"v{APP_VERSION}", image_label)
+        version_label.setObjectName("startupVersion")
+        version_label.setAlignment(Qt.AlignCenter)
+        displayed_image = image_label.pixmap()
+        rendered_height = displayed_image.height() if not displayed_image.isNull() else image_height
+        # Place the version below the program name in the left part of the logo.
+        version_label.setGeometry(
+            0, (image_height - rendered_height) // 2 + round(rendered_height * 0.44),
+            round(image_width * 0.39), 16,
+        )
         layout.addWidget(image_label, alignment=Qt.AlignHCenter)
 
         message_label = QLabel(message)
@@ -1560,12 +1628,19 @@ class StartupDialog(QDialog):
         self.apply_theme()
 
     def apply_theme(self) -> None:
+        version_color = QColor(self.theme["FG"])
         self.setStyleSheet(
             f"""
             QDialog {{
                 background: {self.theme["BG"]};
                 color: {self.theme["FG"]};
                 border: 1px solid {self.theme["ACCENT"]};
+            }}
+            QLabel#startupVersion {{
+                color: rgba({version_color.red()}, {version_color.green()}, {version_color.blue()}, 160);
+                font-size: 10px;
+                font-weight: 400;
+                background: transparent;
             }}
             QLabel#startupMessage {{
                 color: {self.theme["FG"]};
@@ -3029,8 +3104,8 @@ def run() -> None:
     startup_elapsed = QElapsedTimer()
 
     def apply_startup_window_state() -> None:
-        if sys.platform == "darwin":
-            window.setWindowState(window.windowState() | Qt.WindowFullScreen)
+        if window.auto_fullscreen_checkbox.isChecked():
+            window._maximized_before_fullscreen = True
             window.showFullScreen()
         else:
             window.showMaximized()
