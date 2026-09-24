@@ -4,6 +4,12 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.70] - 2026-09-24
+
+- Nettoyage du cache inutilisé dans Options, avec aperçu de l’espace récupérable et confirmation avant suppression.
+- Conservation des images référencées, y compris celles des sources déconnectées, sans toucher aux dossiers vidéo.
+- Aide actualisée pour la navigation, la télécommande, la synchronisation et le cache ; section développeurs réorganisée en explications rapides et approfondies.
+
 ## [1.0.69] - 2026-09-23
 
 - Fiche de lecture plus compacte, boutons agrandis, « Visionner » présélectionné et navigation gauche/droite en boucle.

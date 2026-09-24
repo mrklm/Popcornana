@@ -49,6 +49,7 @@ from app.utils.paths import POSTERS_DIR, ensure_data_dirs, resource_path
 from app.utils.folder_metadata import folder_cover, read_folder_description, write_folder_cover, write_folder_description
 from app.utils.player import open_media
 from app.utils.safe_files import atomic_write, atomic_copy
+from app.utils.cache_cleanup import unused_images, remove_unused_images
 from app.version import APP_VERSION
 
 
@@ -530,6 +531,17 @@ class MainWindow(QMainWindow):
         self.scroll_speed_value_label.setMinimumWidth(44)
         theme_layout.addWidget(self.scroll_speed_value_label)
         options_layout.addWidget(theme_section)
+        cache_section = QWidget()
+        cache_section.setObjectName("optionSection")
+        cache_layout = QVBoxLayout(cache_section)
+        cache_layout.setContentsMargins(16, 16, 16, 16)
+        cache_hint = QLabel("Supprime les images du cache qui ne sont plus utilisées. Les affiches des sources déconnectées et les fichiers des dossiers vidéo sont conservés.")
+        cache_hint.setWordWrap(True)
+        cache_layout.addWidget(cache_hint)
+        cleanup_button = QPushButton("Nettoyer le cache inutilisé")
+        cleanup_button.clicked.connect(self.clean_unused_cache)
+        cache_layout.addWidget(cleanup_button)
+        options_layout.addWidget(cache_section)
         options_layout.addStretch()
         self.tabs.addTab(scrollable_panel(options_tab), "Options")
 
@@ -562,6 +574,35 @@ class MainWindow(QMainWindow):
         status_bar.addPermanentWidget(self.version_status_label)
         self.setStatusBar(status_bar)
         self.show_media_count_status()
+
+    def _cached_image_references(self) -> list[str | None]:
+        references = list(self.repository.list_folder_posters().values())
+        for item in self.repository.list_media():
+            references.extend((item.poster_path, item.backdrop_path))
+        return references
+
+    def clean_unused_cache(self) -> None:
+        try:
+            preview = unused_images(POSTERS_DIR, self._cached_image_references())
+            if not preview:
+                QMessageBox.information(self, "Nettoyage du cache", "Aucune image inutilisée à supprimer.")
+                return
+            size = sum(identity[2] for identity in preview.values()) / (1024 * 1024)
+            answer = QMessageBox.question(
+                self, "Nettoyage du cache",
+                f"Supprimer {len(preview)} image(s) inutilisée(s) ?\nEspace récupérable : {size:.2f} Mo.\n\nLes fichiers des dossiers vidéo ne seront pas modifiés.",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+            )
+            if answer != QMessageBox.Yes:
+                return
+            count, freed, failed = remove_unused_images(POSTERS_DIR, self._cached_image_references(), preview)
+        except OSError as error:
+            QMessageBox.warning(self, "Nettoyage du cache", f"Nettoyage interrompu : {error}")
+            return
+        message = f"{count} image(s) supprimée(s), {freed / (1024 * 1024):.2f} Mo libérés."
+        if failed:
+            message += f"\n{failed} fichier(s) n’ont pas pu être supprimés."
+        QMessageBox.information(self, "Nettoyage du cache", message)
 
     def change_details_visibility(self, visible: bool) -> None:
         self.repository.set_setting("show_details_panel", "1" if visible else "0")
@@ -2829,11 +2870,11 @@ def build_help_html() -> str:
     <ul>
         <li><b>Ajouter dossier</b> ajoute une source à la médiathèque sans remplacer les autres.</li>
         <li><b>Gérer les sources</b> affiche les sources connues, permet de les retirer et d'autoriser la synchronisation locale.</li>
-        <li><b>Actualiser</b> scanne les sources disponibles, ajoute les nouveaux fichiers, lit les fiches portables <code>Popinfo.txt</code>/<code>cover.*</code> et retire ceux qui n'existent plus dans ces sources.</li>
+        <li><b>Actualiser</b> scanne les sources disponibles, ajoute les nouveaux fichiers, lit les fiches portables <code>Popinfo.txt</code>/<code>cover.*</code> et retire de la base les vidéos disparues de ces sources, sans supprimer de fichiers sur le disque.</li>
         <li><b>Mettre à jour les fiches</b> enrichit les médias avec TMDb et/ou OMDb selon les sources cochées.</li>
         <li>Quand une fiche est enrichie, Popcornana crée <b>cover.*</b> et <b>Popinfo.txt</b> dans le dossier du film si la source autorise la synchro.</li>
         <li><b>Gérer les catégories</b> permet de forcer un dossier en Auto, Film unique, Dossier de films, Série, Dossier de séries ou Ignorer.</li>
-        <li>Dans l'onglet Général, cliquez sur le panneau détail à droite pour ouvrir le zoom fiche avec texte agrandi.</li>
+        <li>Dans l'onglet Général, cliquez sur le panneau détail à droite pour ouvrir la fiche de lecture. Vous pouvez aussi activer un film dans la grille avec OK/Entrée.</li>
     </ul>
 
     <h2>Films, séries et corrections manuelles</h2>
@@ -2854,7 +2895,55 @@ def build_help_html() -> str:
         Un clic droit sur une fiche permet de lancer une recherche TMDb/OMDb ou une édition manuelle.
         Un clic droit sur une série permet de modifier les métadonnées communes de la série :
         affiche, résumé général, réalisateur et année. Les titres des épisodes ne sont pas modifiés.
-        Un clic droit sur un dossier de films permet de l'ouvrir ou de choisir son visuel sans toucher aux films contenus.
+        Un clic droit sur un dossier de films permet de l'ouvrir, de choisir son visuel ou de modifier sa description sans toucher aux fiches des films contenus.
+    </p>
+
+    <h2>Affichage et navigation</h2>
+    <ul>
+        <li>Au démarrage, la bibliothèque est actualisée automatiquement et le focus est placé sur les films : les flèches permettent de naviguer directement dans la grille.</li>
+        <li>Faites glisser la séparation verticale pour ajuster la largeur de la grille et du panneau de droite.</li>
+        <li><b>Ctrl + / Ctrl −</b> ou les boutons <b>Zoom + / Zoom −</b> de la télécommande règlent la taille des affiches, de 50 % à 200 %. Les titres de section restent au-dessus des fiches.</li>
+        <li><b>F11</b> active ou quitte le plein écran. Dans Options, <b>Plein écran automatique à l’ouverture</b> est coché par défaut ; décoché, le programme démarre maximisé. Ce choix est enregistré pour le prochain démarrage.</li>
+        <li><b>Afficher la description du film (panneau de droite)</b>, activé par défaut dans Options, permet de masquer ce panneau et de laisser toute la largeur à la grille. Le choix est enregistré et s’applique immédiatement.</li>
+        <li>La fenêtre peut être réduite ; les panneaux défilent lorsque l’espace disponible est insuffisant.</li>
+    </ul>
+
+    <h2>Fiche de lecture et télécommande</h2>
+    <h3>Popcornana est utilisable avec la souris, le clavier ou avec une télécommande USB.</h3>
+    <ul>
+        <li>La fiche compacte conserve les longs textes dans des zones défilantes et propose deux grands boutons.</li>
+        <li><b>Visionner</b> est présélectionné : <b>OK/Entrée</b> lance le film. Pour un dossier, le bouton permet de l’ouvrir.</li>
+        <li>Les flèches <b>gauche/droite</b> alternent en boucle entre <b>Visionner</b> et <b>Retour à la liste</b>. OK/Entrée active le bouton sélectionné.</li>
+        <li><b>Retour</b> ferme la fiche. Dans la grille, Retour ou Échap permet de quitter un dossier lorsqu’une touche Retour dédiée est utilisée.</li>
+        <li>Si le bouton Retour de votre télécommande émule un <b>clic droit</b> : dans la grille, un appui court ouvre le menu d’édition ; un appui long d’environ <b>0,7 seconde</b>, puis relâchement, revient à la liste principale depuis un dossier. Dans une fiche ouverte, ce bouton ferme la fiche.</li>
+    </ul>
+
+    <h2>Fiches portables et synchronisation</h2>
+    <p>
+        Dans <b>Gérer les sources</b>, cochez <b>Synchro autorisée</b> si vous souhaitez que Popcornana enregistre
+        les affiches et descriptions dans les dossiers sources. Sans cette autorisation, même les éditions manuelles
+        restent dans les données locales de Popcornana : c’est adapté à un disque emprunté ou à une consultation ponctuelle.
+    </p>
+    <ul>
+        <li>Activer la synchro puis valider avec <b>OK</b> exporte les fiches déjà connues vers cette source en créant les fichiers manquants, sans écraser les fichiers existants.</li>
+        <li><code>Popinfo.txt</code> conserve notamment le titre, l’année, le réalisateur et le résumé ; <code>cover.*</code> conserve l’affiche.</li>
+        <li>Une édition manuelle met à jour la fiche portable sur une source autorisée. L’affiche est remplacée seulement si elle a été changée, et la description propre au dossier est préservée.</li>
+        <li>Les enrichissements automatiques complètent les fichiers manquants sans écraser les fiches portables existantes.</li>
+        <li>Avant un remplacement, la version précédente est conservée dans un fichier <code>.bak</code>. Le nouveau fichier est préparé avant de remplacer l’ancien ; il n’est pas nécessaire d’attendre la fermeture du programme.</li>
+        <li>Dans un dossier contenant plusieurs vidéos, un <code>Popinfo.txt</code> identifié comme appartenant à une autre vidéo est préservé.</li>
+        <li>La description d’un dossier de films utilise le champ <code>folder_description</code> de <code>Popinfo.txt</code> ; son visuel utilise <code>repocover.*</code>, séparément de l’affiche du film.</li>
+    </ul>
+
+    <h2>Nettoyage du cache</h2>
+    <p>
+        Tout en bas des Options, <b>Nettoyer le cache inutilisé</b> indique le nombre d’images inutilisées et l’espace
+        récupérable avant de demander confirmation. Seules les images du cache qui ne sont plus référencées sont supprimées.
+        Les affiches encore utilisées, y compris celles des sources déconnectées et des dossiers personnalisés, sont conservées.
+        Aucun fichier des dossiers vidéo, notamment <code>cover.*</code>, <code>repocover.*</code> ou <code>Popinfo.txt</code>, n’est supprimé.
+    </p>
+    <p>
+        Si une vidéo disparaît d’une source accessible, l’actualisation retire sa fiche de la base mais ne nettoie pas
+        automatiquement son image en cache. Si la source entière est déconnectée, ses fiches sont conservées et masquées jusqu’à sa reconnexion.
     </p>
 
     <h2>Clés API</h2>
@@ -2889,7 +2978,8 @@ def build_help_html() -> str:
         <li>Une fiche modifiée manuellement est protégée contre les enrichissements automatiques suivants.</li>
     </ul>
 
-    <h2>Pour les Geeks</h2>
+    <h2>Pour les développeurs</h2>
+    <h3>Explications rapides</h3>
     <p>
         Popcornana est une application desktop PySide6. L'interface lit et écrit dans une base SQLite locale.
         Les fichiers vidéo ne sont jamais déplacés : la base conserve leurs chemins, les métadonnées récupérées
@@ -2911,7 +3001,14 @@ def build_help_html() -> str:
         SQLite garde l'état local, le scan importe les fiches portables trouvées dans les dossiers, puis les clients TMDb/OMDb enrichissent les fiches quand une source est activée.
     </p>
 
-    <h2>Pour les développeurs</h2>
+    <h3>Explications approfondies</h3>
+    <p>
+        Les données locales dépendent du mode de lancement : depuis les sources (<code>.venv/bin/python main.py</code>),
+        elles sont conservées dans <code>data/</code> à la racine du projet. L’application installée et l’AppImage utilisent
+        le dossier de données utilisateur : sous Linux, <code>$XDG_DATA_HOME/Popcornana</code> ou, par défaut,
+        <code>~/.local/share/Popcornana/</code>. Ces bases et caches distincts peuvent donc afficher des fiches différentes
+        pour les mêmes vidéos. Les fichiers portables permettent de retrouver les informations lors d’un scan.
+    </p>
     <p>
         Le code est organisé autour d'un flux simple : scanner le disque, normaliser les noms, persister les fiches,
         construire des entrées de médiathèque, puis enrichir ou lire les médias selon l'action utilisateur.
@@ -2926,6 +3023,9 @@ def build_help_html() -> str:
         <li><b><code>app/scanner/name_cleaner.py</code></b> : nettoyage et parsing des noms. Il retire les tags techniques et reconnaît les motifs d'épisodes.</li>
         <li><b><code>app/tmdb/client.py</code></b> et <b><code>app/omdb/client.py</code></b> : clients de métadonnées. Ils cherchent, scorent et appliquent les résultats aux fiches.</li>
         <li><b><code>app/utils/player.py</code></b> : lancement vidéo. Il privilégie VLC en plein écran, ajoute le sous-titre trouvé, puis retombe sur le lecteur système si besoin.</li>
+        <li><b><code>app/utils/folder_metadata.py</code></b> : description et visuel portables des dossiers de films.</li>
+        <li><b><code>app/utils/safe_files.py</code></b> : préparation des écritures et sauvegarde de la version précédente avant remplacement.</li>
+        <li><b><code>app/utils/cache_cleanup.py</code></b> : identification des images inutilisées, puis nouvelle vérification des références et des fichiers avant suppression, sans suivre les liens symboliques.</li>
         <li><b><code>scripts/build_release.py</code></b> : build PyInstaller et packaging des artefacts macOS, Windows, Linux tar.gz et Linux AppImage.</li>
     </ul>
     <p>
