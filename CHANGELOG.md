@@ -4,6 +4,12 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.71] - 2026-09-25
+
+- Packaging Linux : inclusion explicite des bibliothèques clientes X11/XCB/Wayland, dont `libxcb-cursor.so.0`, pour corriger le démarrage sous X11.
+- Contrôle bloquant des dépendances Qt et du paquet compilé avant création de l’AppImage.
+- Prérequis Linux du workflow et documentation de compilation actualisés, sans forcer le backend graphique.
+
 ## [1.0.70] - 2026-09-24
 
 - Nettoyage du cache inutilisé dans Options, avec aperçu de l’espace récupérable et confirmation avant suppression.

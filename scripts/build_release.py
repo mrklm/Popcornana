@@ -12,6 +12,11 @@ from pathlib import Path
 
 from PIL import Image
 
+if __package__:
+    from .linux_qt_dependencies import collect_linux_qt_dependencies, verify_linux_archive
+else:
+    from linux_qt_dependencies import collect_linux_qt_dependencies, verify_linux_archive
+
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DIST_DIR = ROOT_DIR / "dist"
@@ -68,6 +73,9 @@ def prepare_icon(target: str) -> Path:
 
 
 def run_pyinstaller(target: str, icon_path: Path) -> None:
+    linux_libraries = {}
+    if target == "linux-x64":
+        linux_libraries = collect_linux_qt_dependencies()
     command = [
         sys.executable,
         "-m",
@@ -89,10 +97,14 @@ def run_pyinstaller(target: str, icon_path: Path) -> None:
     ]
     if target in {"windows-x64", "linux-x64"}:
         command.insert(command.index("--windowed") + 1, "--onefile")
+    for library in linux_libraries.values():
+        command[-1:-1] = ["--add-binary", add_data_arg(str(library), ".")]
 
     env = os.environ.copy()
     env["PYINSTALLER_CONFIG_DIR"] = str(BUILD_DIR / "pyinstaller-config")
     subprocess.run(command, cwd=ROOT_DIR, env=env, check=True)
+    if target == "linux-x64":
+        verify_linux_archive(DIST_DIR / "Popcornana", linux_libraries, BUILD_DIR / "qt-dependency-audit")
 
 
 def add_data_arg(source: str, destination: str) -> str:
@@ -227,6 +239,7 @@ def build_linux_appimage(executable_path: Path, artifact_base: Path) -> Path:
     appimagetool = shutil.which("appimagetool")
     if not appimagetool:
         raise SystemExit("appimagetool is required to build the Linux AppImage artifact.")
+    verify_linux_archive(executable_path, collect_linux_qt_dependencies(), BUILD_DIR / "qt-dependency-audit")
 
     appdir = BUILD_DIR / "Popcornana.AppDir"
     appdir_bin = appdir / "usr" / "bin"

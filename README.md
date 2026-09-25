@@ -1,6 +1,6 @@
 # Popcornana
 
-Version actuelle: **1.0.70**
+Version actuelle: **1.0.71**
 
 Popcornana est une application desktop locale pour organiser une médiathèque de films et séries. Elle scanne un dossier de vidéos, nettoie les noms de fichiers, affiche les médias dans une grille visuelle, récupère des métadonnées depuis OMDb et/ou TMDb, garde les affiches en cache local, puis lance la lecture avec VLC en plein écran quand il est disponible, avec sous-titre détecté automatiquement.
 
@@ -209,9 +209,9 @@ Le workflow est défini dans `.github/workflows/release.yml`. Il peut être lanc
 Exemple de release:
 
 ```bash
-git tag v1.0.70 main
+git tag v1.0.71 main
 git push origin main
-git push origin v1.0.70
+git push origin v1.0.71
 ```
 
 GitHub Actions construit les artefacts des trois systèmes et les ajoute à la release GitHub correspondant au fichier `VERSION`.
@@ -256,8 +256,27 @@ python scripts/build_release.py --target linux-x64
 
 La cible Linux nécessite `appimagetool` dans le `PATH` pour générer l'artefact `.AppImage`.
 
+Avant de compiler sur Ubuntu/Debian, installer les bibliothèques Qt natives (le venv Python ne les fournit pas) :
+
+```bash
+sudo apt install libegl1 libgl1 libx11-xcb1 libxkbcommon-x11-0 libxcb1 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-shm0 libxcb-sync1 libxcb-xfixes0 libxcb-xkb1 libxcb-glx0 libxcb-util1 libwayland-client0 libwayland-cursor0 libwayland-egl1
+```
+
+Le build analyse avec `ldd` les plugins XCB et Wayland de PySide6, ainsi que leurs intégrations graphiques. Une dépendance introuvable bloque la compilation. Les bibliothèques clientes X11, XCB (dont `libxcb-cursor.so.0`), xkbcommon et Wayland sont ajoutées explicitement au paquet PyInstaller. Le paquet monofichier est ensuite inspecté et ses bibliothèques extraites dans `build/qt-dependency-audit/` ; `dependency-report.txt` indique les chemins réellement résolus. Le build échoue si un plugin dépend encore d’une bibliothèque cliente X11/XCB/Wayland du système plutôt que de sa copie embarquée.
+
+L’AppDir contient cet exécutable monofichier : les bibliothèques Qt sont dans son archive interne, et non directement dans `usr/lib`. `appimagetool` encapsule l’AppDir ; il ne recherche pas les dépendances. Aucun lanceur ne force `QT_QPA_PLATFORM` : Qt choisit le backend de la session.
+
+Sur la machine de destination, `libxcb-cursor0` ne doit plus être nécessaire séparément pour les nouveaux builds validés. Restent requis un serveur X11 ou un compositeur Wayland, les pilotes graphiques adaptés et la pile OpenGL/EGL du système (`libgl1`, `libegl1` sur Ubuntu/Debian). La glibc (`libc6`) et son chargeur ne sont pas embarqués : ils doivent être compatibles avec la machine de compilation. Une compilation sur une distribution récente ne garantit donc pas le fonctionnement sur une distribution plus ancienne. Construire sur la plus ancienne distribution cible prise en charge par la version de PySide6 utilisée.
+
+Le lancement habituel de cette AppImage de type 2 nécessite FUSE 2 (`libfuse2` ou `libfuse2t64` selon la version d’Ubuntu). Sans FUSE, utiliser `APPIMAGE_EXTRACT_AND_RUN=1 ./Popcornana-<version>-linux-x64.AppImage`.
+
+Validation graphique recommandée : lancer l’AppImage dans une session X11 puis Wayland, avec `QT_QPA_PLATFORM` non défini. Un test `offscreen` seul ne valide pas X11/Wayland. Pour diagnostiquer, `QT_DEBUG_PLUGINS=1` affiche les plugins chargés. Tester également dans une VM minimale sans `libxcb-cursor0` installé ; le poste de compilation, où ces paquets sont présents, ne suffit pas à prouver toute la portabilité.
+
+Références : [dépendances Qt sous Linux](https://doc.qt.io/qt-6/linux-requirements.html), [limitations GNU/Linux de PyInstaller](https://pyinstaller.org/en/stable/usage.html#making-gnu-linux-apps-forward-compatible).
+
+
 ## Version
 
-La version actuelle est `1.0.70`.
+La version actuelle est `1.0.71`.
 
 Voir [CHANGELOG.md](CHANGELOG.md) pour le détail de l'état de la release.
