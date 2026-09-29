@@ -4,6 +4,12 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.72] - 2026-09-29
+
+- Choix du lecteur vidéo dans Options : Automatique, MPV, VLC ou lecteur système.
+- En automatique : priorité à MPV sous Linux et à VLC sous macOS/Windows, avec secours vers le lecteur système.
+- Sous-titres associés au nom de la vidéo, avec priorité au français et suppression du choix arbitraire dans le dossier.
+
 ## [1.0.71] - 2026-09-25
 
 - Packaging Linux : inclusion explicite des bibliothèques clientes X11/XCB/Wayland, dont `libxcb-cursor.so.0`, pour corriger le démarrage sous X11.

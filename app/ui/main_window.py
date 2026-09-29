@@ -47,7 +47,7 @@ from app.scanner.video_scanner import category_for_path, scan_videos
 from app.tmdb.client import TmdbClient, apply_tmdb_result
 from app.utils.paths import POSTERS_DIR, ensure_data_dirs, resource_path
 from app.utils.folder_metadata import folder_cover, read_folder_description, write_folder_cover, write_folder_description
-from app.utils.player import open_media
+from app.utils.player import PLAYER_LABELS, get_available_players, open_media
 from app.utils.safe_files import atomic_write, atomic_copy
 from app.utils.cache_cleanup import unused_images, remove_unused_images
 from app.version import APP_VERSION
@@ -484,6 +484,24 @@ class MainWindow(QMainWindow):
         fullscreen_hint.setWordWrap(True)
         fullscreen_layout.addWidget(fullscreen_hint)
         options_layout.addWidget(fullscreen_section)
+
+        player_section = QWidget()
+        player_section.setObjectName("optionSection")
+        player_layout = QHBoxLayout(player_section)
+        player_layout.setContentsMargins(16, 16, 16, 16)
+        player_layout.addWidget(QLabel("Lecteur vidéo :"))
+        self.player_combo = QComboBox()
+        for player in get_available_players():
+            self.player_combo.addItem(PLAYER_LABELS[player], player)
+        preference = self.repository.get_setting("video_player") or "auto"
+        index = self.player_combo.findData(preference)
+        self.player_combo.setCurrentIndex(index if index >= 0 else self.player_combo.findData("system"))
+        self.player_combo.currentIndexChanged.connect(
+            lambda _index: self.repository.set_setting("video_player", self.player_combo.currentData())
+        )
+        player_layout.addWidget(self.player_combo)
+        player_layout.addStretch()
+        options_layout.addWidget(player_section)
 
         details_section = QWidget()
         details_section.setObjectName("optionSection")
@@ -1282,7 +1300,13 @@ class MainWindow(QMainWindow):
             return
         if not self.current_item:
             return
-        open_media(self.current_item.filepath)
+        self.play_video(self.current_item.filepath)
+
+    def play_video(self, path: str | Path) -> None:
+        try:
+            open_media(path, self.repository.get_setting("video_player"))
+        except OSError as error:
+            QMessageBox.warning(self, "Lecture impossible", f"Impossible d’ouvrir la vidéo :\n{error}")
 
     def activate_item(self, _item: QListWidgetItem) -> None:
         if self.current_entry and self.current_entry.kind == "header":
@@ -1912,7 +1936,7 @@ class FullscreenEntryDialog(QDialog):
             return
         if not self.entry.items:
             return
-        open_media(self.entry.items[0].filepath)
+        self.parent().play_video(self.entry.items[0].filepath)
 
     def _fit_wrapped_label(self, label: QLabel, width: int) -> None:
         bounds = label.fontMetrics().boundingRect(
@@ -3022,7 +3046,7 @@ def build_help_html() -> str:
         <li><b><code>app/scanner/video_scanner.py</code></b> : scan récursif. Il applique les catégories forcées, ignore les dossiers exclus, détecte films/séries et crée les <code>MediaItem</code> de base.</li>
         <li><b><code>app/scanner/name_cleaner.py</code></b> : nettoyage et parsing des noms. Il retire les tags techniques et reconnaît les motifs d'épisodes.</li>
         <li><b><code>app/tmdb/client.py</code></b> et <b><code>app/omdb/client.py</code></b> : clients de métadonnées. Ils cherchent, scorent et appliquent les résultats aux fiches.</li>
-        <li><b><code>app/utils/player.py</code></b> : lancement vidéo. Il privilégie VLC en plein écran, ajoute le sous-titre trouvé, puis retombe sur le lecteur système si besoin.</li>
+        <li><b><code>app/utils/player.py</code></b> : lancement vidéo. Il applique le choix du lecteur dans les Options (automatique, MPV, VLC ou système), ajoute le sous-titre trouvé pour MPV/VLC et utilise le lecteur système en secours.</li>
         <li><b><code>app/utils/folder_metadata.py</code></b> : description et visuel portables des dossiers de films.</li>
         <li><b><code>app/utils/safe_files.py</code></b> : préparation des écritures et sauvegarde de la version précédente avant remplacement.</li>
         <li><b><code>app/utils/cache_cleanup.py</code></b> : identification des images inutilisées, puis nouvelle vérification des références et des fichiers avant suppression, sans suivre les liens symboliques.</li>
