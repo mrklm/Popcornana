@@ -4,6 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.73] - 2026-09-30
+
+- Sous-titre unique utilisé quel que soit son nom, avec MPV comme avec VLC.
+- Si plusieurs sous-titres sont présents : priorité au français, puis à l’anglais, puis à l’ordre alphabétique.
+
 ## [1.0.72] - 2026-09-29
 
 - Choix du lecteur vidéo dans Options : Automatique, MPV, VLC ou lecteur système.

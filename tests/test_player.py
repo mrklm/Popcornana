@@ -126,74 +126,82 @@ class PlaybackEntryPointTests(unittest.TestCase):
 
 
 class SubtitleSelectionTests(unittest.TestCase):
-    def select(self, filenames, video='Film.mp4', expected=None):
+    def select(self, filenames, expected=None):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)
             for name in filenames:
                 (folder / name).touch()
-            result = player.find_subtitle(folder / video)
+            result = player.find_subtitle(folder / 'Film.mp4')
             self.assertEqual(result, folder / expected if expected else None)
 
-    def test_french_preferred_to_exact_and_english(self):
-        self.select(['Film.srt', 'Film.en.srt', 'Film.fr.srt'], expected='Film.fr.srt')
+    def test_single_subtitle_regardless_of_name(self):
+        self.select(['Autre nom.srt'], expected='Autre nom.srt')
 
     def test_french_markers_case_and_separators(self):
-        for marker in ('fr', 'FR', 'Fr', 'fR', 'french', 'FRENCH', 'French'):
-            for separator in ('.', '-', '_'):
-                name = 'Film' + separator + marker + '.srt'
+        for marker in ('fr', 'FR', 'Fr', 'french', 'FRENCH', 'francais', 'Francais', 'FRANÇAIS'):
+            for separator in ('.', '-', '_', ' '):
+                name = 'Z autre' + separator + marker + '.srt'
                 with self.subTest(name=name):
-                    self.select(['Film.srt', name], expected=name)
+                    self.select(['A.srt', 'B.en.srt', name], expected=name)
+        self.select(['A.en.srt', 'Z [fr].srt'], expected='Z [fr].srt')
 
-    def test_french_letters_inside_words_are_not_markers(self):
-        self.select(['Film.friends.srt', 'Film-afraid.srt', 'Film_frenchman.srt'])
-        self.select(['Film.friends.srt', 'Film.srt'], expected='Film.srt')
-        self.select(['Afrique.en.srt', 'Afrique.srt'], video='Afrique.mp4', expected='Afrique.srt')
+    def test_english_markers_are_second_choice(self):
+        for marker in ('en', 'EN', 'eng', 'ENG', 'english', 'English', 'anglais', 'ANGLAIS'):
+            name = 'Z_' + marker + '.srt'
+            with self.subTest(marker=marker):
+                self.select(['A.srt', name], expected=name)
+                self.select(['A.srt', name, 'ZZ.fr.srt'], expected='ZZ.fr.srt')
 
-    def test_only_matching_episode_is_selected(self):
-        self.select(['Serie.S01E01.fr.srt', 'Serie.S01E02.fr.srt', 'Serie.S01E03.fr.srt'],
-                    video='Serie.S01E02.mp4', expected='Serie.S01E02.fr.srt')
+    def test_language_substrings_are_not_markers(self):
+        for word in ('friends', 'afraid', 'frenchman', 'fr2', 'englishman', 'eng2', 'frenchenglish'):
+            with self.subTest(word=word):
+                self.select(['A.srt', 'Z.' + word + '.srt'], expected='A.srt')
 
-    def test_unrelated_subtitles_are_never_selected(self):
-        self.select(['Serie.S01E01.fr.srt', 'Serie.S01E03.fr.srt', 'AutreFilm.srt',
-                     'Serie.S01E020.fr.srt', 'Serie.S01E02.extra.fr.srt'],
-                    video='Serie.S01E02.mp4')
+    def test_alphabetical_ties_ignore_case_and_extension_priority(self):
+        self.select(['z.fr.srt', 'a.FR.vtt'], expected='a.FR.vtt')
+        self.select(['z.en.srt', 'a.english.ass'], expected='a.english.ass')
+        self.select(['Z.srt', 'a.vtt'], expected='a.vtt')
+        self.select(['Film.fr.srt', 'Film.fr.ass'], expected='Film.fr.ass')
+        self.select(['A.srt', 'a.srt'], expected='A.srt')
+
+    def test_no_subtitle(self):
         self.select([])
-        self.select(['Film.en.srt'])
+        self.select(['Film.mp4', 'Film.fr.txt'])
 
-    def test_supported_extensions_and_deterministic_priority(self):
+    def test_supported_extensions(self):
         for extension in player.SUBTITLE_EXTENSIONS:
+            name = 'Autre nom' + extension.upper()
             with self.subTest(extension=extension):
-                name = 'Film.FR' + extension.upper()
-                self.select(['Film.srt', name], expected=name)
-        self.select(['Film.fr.vtt', 'Film.fr.srt', 'Film.fr.ass'], expected='Film.fr.srt')
-        self.select(['Film.vtt', 'Film.ass'], expected='Film.ass')
+                self.select([name], expected=name)
 
-    def test_directories_and_unsupported_extensions_are_ignored(self):
+    def test_directories_and_nested_subtitles_are_ignored(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)
-            (folder / 'Film.fr.srt').mkdir()
-            (folder / 'Film.fr.txt').touch()
+            nested = folder / 'Film.fr.srt'
+            nested.mkdir()
+            (nested / 'Nested.fr.srt').touch()
             self.assertIsNone(player.find_subtitle(folder / 'Film.mp4'))
 
-    def test_mpv_and_vlc_receive_only_selected_subtitle(self):
+    def test_mpv_and_vlc_receive_selected_subtitle(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)
             media = folder / 'Film.mp4'
-            unrelated = folder / 'AutreFilm.fr.srt'
-            unrelated.touch()
-            for french in (False, True):
-                subtitle = folder / 'Film.FR.srt'
-                if french:
-                    subtitle.touch()
+            for name in (None, 'Autre nom.srt', 'Z.English.srt', 'ZZ.Français.srt'):
+                if name:
+                    (folder / name).touch()
                 for choice in ('mpv', 'vlc'):
-                    with self.subTest(french=french, player=choice), \
+                    with self.subTest(name=name, player=choice), \
                          patch.object(player, 'detect_players', return_value={choice: '/player'}), \
                          patch.object(player.subprocess, 'Popen') as popen:
                         player.open_media(media, choice)
-                        command = popen.call_args.args[0]
-                        if french:
-                            self.assertIn('--sub-file=' + str(subtitle) if choice == 'mpv'
-                                          else str(subtitle), command)
+                        subtitle = folder / name if name else None
+                        if choice == 'mpv':
+                            expected = ['/player', '--fullscreen']
+                            if subtitle:
+                                expected.append('--sub-file=' + str(subtitle))
+                            expected.append(str(media))
                         else:
-                            self.assertEqual(command, ['/player', '--fullscreen', str(media)])
-                        self.assertNotIn(str(unrelated), command)
+                            expected = ['/player', '--fullscreen', str(media)]
+                            if subtitle:
+                                expected.extend(['--sub-file', str(subtitle)])
+                        popen.assert_called_once_with(expected)

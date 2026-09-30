@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import platform
@@ -71,27 +72,25 @@ def open_media(path: str | Path, preference: str | None = None) -> None:
 
 
 def find_subtitle(media_path: Path) -> Path | None:
-    """Select only an exact basename or an explicit French suffix.
+    """Prefer French, then English, then any subtitle in the video folder.
 
-    The video basename is case-sensitive; language markers and extensions are
-    case-insensitive. French wins over an untagged match, then extension order
-    and filename order break ties deterministically.
+    Language markers are whole tokens, ignoring case. Ties use case-insensitive
+    filename order, with the original filename as a deterministic tie-breaker.
     """
     matches = []
     for candidate in media_path.parent.iterdir():
-        extension = candidate.suffix.casefold()
-        if extension not in SUBTITLE_EXTENSIONS or not candidate.is_file():
+        if candidate.suffix.casefold() not in SUBTITLE_EXTENSIONS or not candidate.is_file():
             continue
-        if candidate.stem == media_path.stem:
-            priority = 1
-        elif candidate.stem.startswith(media_path.stem):
-            suffix = candidate.stem[len(media_path.stem):].casefold()
-            if suffix not in (".fr", "-fr", "_fr", ".french", "-french", "_french"):
-                continue
+        # Underscores, punctuation and spaces separate markers; letters and
+        # digits stay together so words such as "friends" cannot match "fr".
+        markers = set(re.split(r"[\W_]+", candidate.stem.casefold()))
+        if markers & {"fr", "french", "francais", "français"}:
             priority = 0
+        elif markers & {"en", "eng", "english", "anglais"}:
+            priority = 1
         else:
-            continue
-        matches.append((priority, SUBTITLE_EXTENSIONS.index(extension), candidate.name, candidate))
+            priority = 2
+        matches.append((priority, candidate.name.casefold(), candidate.name, candidate))
     return min(matches)[-1] if matches else None
 
 
