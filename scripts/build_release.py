@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import plistlib
+import re
 import shutil
 import subprocess
 import sys
@@ -118,6 +120,7 @@ def package_artifact(target: str) -> None:
     artifacts: list[Path] = []
     if target == "macos-intel":
         app_path = DIST_DIR / "Popcornana.app"
+        set_macos_bundle_version(app_path, version)
         zip_path = artifact_path(artifact_base, ".zip")
         if shutil.which("ditto"):
             subprocess.run(
@@ -196,6 +199,22 @@ def read_version() -> str:
         return VERSION_PATH.read_text(encoding="utf-8").strip()
     except OSError:
         return "unknown"
+
+
+def set_macos_bundle_version(app_path: Path, version: str) -> None:
+    """Inscrit la version dans Info.plist (PyInstaller laisse 0.0.0), puis re-signe le bundle."""
+    if not re.fullmatch(r"\d+(\.\d+)*", version):
+        return
+    plist_path = app_path / "Contents" / "Info.plist"
+    with plist_path.open("rb") as handle:
+        info = plistlib.load(handle)
+    info["CFBundleShortVersionString"] = version
+    info["CFBundleVersion"] = version
+    with plist_path.open("wb") as handle:
+        plistlib.dump(info, handle)
+    if shutil.which("codesign"):
+        # Info.plist fait partie de la signature ad hoc posée par PyInstaller.
+        subprocess.run(["codesign", "--force", "--deep", "--sign", "-", str(app_path)], check=True)
 
 
 def create_dmg(app_path: Path, dmg_path: Path, version: str) -> None:

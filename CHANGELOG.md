@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.79] - 2026-11-15
+
+- Build macOS : la version est inscrite dans `Info.plist` de `Popcornana.app` (elle valait 0.0.0), puis le bundle est re-signé.
+
 ## [1.0.78] - 2026-11-15
 
 - Options : nouvelle section « Télécommande » pour assigner des boutons supplémentaires aux actions de l’interface (flèches, Valider, Retour, Menu, Accueil, pages, zoom, plein écran). Les boutons par défaut restent actifs ; conflits refusés ; réglage propre à chaque ordinateur.
