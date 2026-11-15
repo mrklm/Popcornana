@@ -4,6 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.80] - 2026-11-15
+
+- Aide : nouvelle section « Télécommande » (tableau des boutons par défaut, assignation, limites pendant la lecture dans VLC/MPV) et section « Comparer les sources » complétée.
+- README : options « Comparer les sources », « Télécommande » et nettoyage du cache documentées, journal `harmonisations.json` mentionné dans les données locales.
+
 ## [1.0.79] - 2026-11-15
 
 - Build macOS : la version est inscrite dans `Info.plist` de `Popcornana.app` (elle valait 0.0.0), puis le bundle est re-signé.

@@ -3265,17 +3265,53 @@ def build_help_html() -> str:
         <li>La fenêtre peut être réduite ; les panneaux défilent lorsque l’espace disponible est insuffisant.</li>
     </ul>
 
-    <h2>Fiche de lecture et télécommande</h2>
+    <h2>Fiche de lecture</h2>
     <h3>Popcornana est utilisable avec la souris, le clavier ou avec une télécommande USB.</h3>
     <ul>
         <li>La fiche compacte conserve les longs textes dans des zones défilantes et propose deux grands boutons.</li>
         <li><b>Visionner</b> est présélectionné : <b>OK/Entrée</b> lance le film. Pour un dossier, le bouton permet de l’ouvrir.</li>
         <li>Les flèches <b>gauche/droite</b> alternent en boucle entre <b>Visionner</b> et <b>Retour à la liste</b>. OK/Entrée active le bouton sélectionné.</li>
-        <li><b>Retour</b> ferme la fiche. Dans la grille, Retour ou Échap permet de quitter un dossier lorsqu’une touche Retour dédiée est utilisée.</li>
-        <li><b>Menu</b> ouvre le menu d’édition de la fiche sélectionnée ; <b>Accueil</b> revient au début de la bibliothèque, en quittant le dossier ouvert.</li>
-        <li>Dans <b>Options › Télécommande</b>, <b>Assigner…</b> associe un bouton de votre télécommande à une action (flèches, Valider, Retour, Menu, Accueil, pages, zoom, plein écran) lorsque les boutons par défaut ne suffisent pas. Le bouton assigné s’ajoute aux boutons par défaut ; <b>Effacer</b> ou <b>Revenir aux boutons par défaut</b> annule les assignations. Les boutons gérés directement par le système (volume, touches multimédia) ne peuvent pas être assignés, et ces réglages ne s’appliquent pas pendant la lecture dans VLC ou MPV.</li>
+        <li><b>Retour</b>, Échap ou un clic droit ferme la fiche.</li>
+    </ul>
+
+    <h2>Télécommande</h2>
+    <p>
+        La plupart des télécommandes USB se comportent comme un clavier ou une souris : elles fonctionnent sans réglage.
+        Les boutons par défaut sont les suivants.
+    </p>
+    <table cellspacing="0" cellpadding="4" border="1">
+        <tr><th align="left">Action</th><th align="left">Boutons par défaut</th><th align="left">Effet</th></tr>
+        <tr><td>Flèches</td><td>Flèches</td><td>Se déplacer dans la grille ; gauche/droite changent de bouton dans la fiche.</td></tr>
+        <tr><td>Valider</td><td>OK, Entrée, Entrée du pavé numérique, Select</td><td>Ouvre la fiche, puis lance le film ou ouvre le dossier.</td></tr>
+        <tr><td>Retour</td><td>Retour, Échap, Effacement arrière, bouton souris Précédent</td><td>Ferme la fiche ; dans la grille, quitte le dossier ouvert.</td></tr>
+        <tr><td>Menu d’édition</td><td>Clic droit, touche Menu</td><td>Recherche TMDb/OMDb, édition manuelle, visuel de dossier…</td></tr>
+        <tr><td>Accueil</td><td>Touche Accueil</td><td>Revient au début de la bibliothèque en quittant le dossier ouvert.</td></tr>
+        <tr><td>Pages</td><td>Page précédente / Page suivante</td><td>Fait défiler la grille plus vite.</td></tr>
+        <tr><td>Zoom</td><td>Ctrl + / Ctrl −, Zoom + / Zoom −</td><td>Règle la taille des affiches.</td></tr>
+        <tr><td>Plein écran</td><td>F11</td><td>Active ou quitte le plein écran.</td></tr>
+    </table>
+    <ul>
         <li>Si le bouton Retour de votre télécommande émule un <b>clic droit</b> : dans la grille, un appui court ouvre le menu d’édition ; un appui long d’environ <b>0,7 seconde</b>, puis relâchement, revient à la liste principale depuis un dossier. Dans une fiche ouverte, ce bouton ferme la fiche.</li>
     </ul>
+    <h3>Assigner les boutons d’une autre télécommande</h3>
+    <ol>
+        <li>Dans <b>Options › Télécommande</b>, cliquez sur <b>Assigner…</b> en face de l’action voulue.</li>
+        <li>Appuyez sur le bouton de la télécommande : son nom s’affiche dans la colonne <b>Boutons assignés</b>.</li>
+        <li><b>Effacer</b> retire les boutons assignés à une action ; <b>Revenir aux boutons par défaut</b> les retire tous.</li>
+    </ol>
+    <ul>
+        <li>Un bouton assigné s’ajoute aux boutons par défaut, qui restent toujours actifs. Plusieurs boutons peuvent être assignés à la même action.</li>
+        <li>Un bouton déjà utilisé, par défaut ou par une autre action, est refusé. Le clic gauche reste réservé à la souris.</li>
+        <li>Dans un champ de saisie, les boutons assignés gardent leur fonction normale pour permettre d’écrire.</li>
+        <li>Ces réglages sont propres à chaque ordinateur ; ils ne sont pas copiés dans les sources.</li>
+        <li>Les boutons gérés directement par le système (volume, lecture/pause et autres touches multimédia) ne peuvent pas être assignés.</li>
+    </ul>
+    <h3>Pendant la lecture</h3>
+    <p>
+        Le film est lu par VLC ou MPV : ce sont leurs propres raccourcis qui s’appliquent, pas ceux de Popcornana.
+        Sous macOS, VLC traite les boutons ⏪ / ⏩ comme ⏮ / ⏭ (piste précédente / suivante) : c’est un comportement
+        de VLC pour macOS, que Popcornana ne peut pas modifier. Sous Linux, ils avancent et reculent dans le film.
+    </p>
 
     <h2>Fiches portables et synchronisation</h2>
     <p>
@@ -3306,7 +3342,9 @@ def build_help_html() -> str:
         <li><b>Enregistrer</b> applique les choix aux deux sources puis passe au film suivant. <b>Passer</b> ignore ce film, <b>Fermer</b> arrête la comparaison.</li>
         <li>Choisir une image copie aussi le <code>Popinfo.txt</code> du même côté. Le nom de la vidéo indiqué dans <code>Popinfo.txt</code> suit les renommages.</li>
         <li>Aucun fichier n’est supprimé et aucune vidéo n’est copiée ni déplacée. Un sous-titre ou une image remplacé est conservé en <code>.bak</code>. Si un nom visé existe déjà, rien n’est modifié pour ce film.</li>
-        <li><b>Annuler la dernière harmonisation</b> remet en place tous les fichiers de la dernière comparaison.</li>
+        <li>À la première utilisation, une confirmation rappelle que des fichiers de vos sources vont être renommés ou remplacés.</li>
+        <li>Les films déjà identiques des deux côtés ne sont pas présentés ; le compteur <b>Comparaison 1 / n</b> indique le nombre de films restant à examiner.</li>
+        <li><b>Annuler la dernière harmonisation</b> remet en place tous les fichiers de la dernière comparaison. Le journal des harmonisations (20 dernières) est conservé dans <code>harmonisations.json</code>, dans le dossier de données de Popcornana.</li>
     </ul>
 
     <h2>Nettoyage du cache</h2>

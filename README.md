@@ -1,6 +1,6 @@
 # Popcornana
 
-Version actuelle: **1.0.79**
+Version actuelle: **1.0.80**
 
 Popcornana est une application desktop locale pour organiser une médiathèque de films et séries. Elle scanne un dossier de vidéos, nettoie les noms de fichiers, affiche les médias dans une grille visuelle, récupère des métadonnées depuis OMDb et/ou TMDb, garde les affiches en cache local, puis lance la lecture avec VLC en plein écran quand il est disponible, avec sous-titre détecté automatiquement.
 
@@ -67,10 +67,30 @@ Regroupe les actions et réglages:
 - `Gérer les catégories`: force un dossier en Auto, Film unique, Dossier de films, Série, Dossier de séries ou Ignorer.
 - `Options avancées`: permet de choisir OMDb, TMDb ou les deux et d'enregistrer les clés API.
 - `Thème`: change le thème visuel de l'application et ajuste la vitesse de défilement.
+- `Nettoyer le cache inutilisé`: supprime, après confirmation, les images du cache qui ne sont plus référencées.
+- `Comparer les sources`: compare deux sources dont la synchronisation est autorisée. Les vidéos de taille strictement identique (à l'octet près) sont présentées côte à côte: fichier vidéo, dossier, sous-titres (un par langue) et image `cover` avec aperçu. Un clic choisit la version à conserver, `Renommer…` corrige un nom, `Enregistrer` applique le choix aux deux sources, `Passer` ignore le film et `Fermer` arrête la comparaison. Aucun fichier n'est supprimé ni aucune vidéo copiée: les fichiers remplacés sont conservés en `.bak`, un conflit de nom bloque la modification et `Annuler la dernière harmonisation` remet tout en place. Les séries, les dossiers à plusieurs vidéos et les tailles partagées par plusieurs vidéos sont ignorés.
+- `Télécommande`: assigne des boutons supplémentaires aux actions de l'interface (voir ci-dessous).
+
+**Télécommande**
+
+Les télécommandes USB qui se comportent comme un clavier ou une souris fonctionnent sans réglage. Boutons par défaut:
+
+| Action | Boutons par défaut |
+| --- | --- |
+| Flèches | Flèches |
+| Valider | OK, Entrée, Entrée du pavé numérique, Select |
+| Retour | Retour, Échap, Effacement arrière, bouton souris Précédent, appui long (0,7 s) sur le clic droit dans un dossier |
+| Menu d'édition | Clic droit, touche Menu |
+| Accueil | Touche Accueil |
+| Pages | Page précédente, Page suivante |
+| Zoom | Ctrl +, Ctrl −, Zoom +, Zoom − |
+| Plein écran | F11 |
+
+Dans `Options › Télécommande`, `Assigner…` associe un bouton d'une autre télécommande à l'une de ces actions. Le bouton assigné s'ajoute aux boutons par défaut, qui restent actifs; un bouton déjà utilisé est refusé et le clic gauche reste réservé à la souris. Les boutons assignés sont ignorés dans les champs de saisie. Le réglage est enregistré dans la base locale (`remote_bindings`), propre à chaque ordinateur. Les touches gérées par le système (volume, touches multimédia) ne peuvent pas être assignées, et pendant la lecture ce sont les raccourcis de VLC ou MPV qui s'appliquent.
 
 **Aide**
 
-Décrit le fonctionnement de Popcornana, donne les adresses pour obtenir les clés API TMDb/OMDb et résume les choix techniques dans une section `Pour les Geeks`.
+Décrit le fonctionnement de Popcornana (navigation, fiche de lecture, télécommande, fiches portables, comparaison des sources, nettoyage du cache), donne les adresses pour obtenir les clés API TMDb/OMDb et résume les choix techniques dans une section `Pour les Geeks`.
 
 ## Métadonnées
 
@@ -167,9 +187,10 @@ Depuis les sources, les données sont stockées dans `data/` à la racine du pro
 Ce dossier contient:
 
 ```text
-media.db        base SQLite locale
-posters/        cache local des affiches
-cache/          dossier réservé aux caches futurs
+media.db            base SQLite locale (dont les réglages, boutons de télécommande compris)
+posters/            cache local des affiches
+cache/              dossier réservé aux caches futurs
+harmonisations.json journal des 20 dernières harmonisations de sources, pour l'annulation
 ```
 
 Pour un lancement depuis les sources, le fichier `.env` peut contenir les clés API à la racine du projet; il est ignoré par git.
@@ -211,9 +232,9 @@ Le workflow est défini dans `.github/workflows/release.yml`. Il peut être lanc
 Exemple de release:
 
 ```bash
-git tag v1.0.79 main
+git tag v1.0.80 main
 git push origin main
-git push origin v1.0.79
+git push origin v1.0.80
 ```
 
 GitHub Actions construit les artefacts des trois systèmes et les ajoute à la release GitHub correspondant au fichier `VERSION`.
@@ -291,6 +312,6 @@ Références : [dépendances Qt sous Linux](https://doc.qt.io/qt-6/linux-require
 
 ## Version
 
-La version actuelle est `1.0.79`.
+La version actuelle est `1.0.80`.
 
 Voir [CHANGELOG.md](CHANGELOG.md) pour le détail de l'état de la release.
