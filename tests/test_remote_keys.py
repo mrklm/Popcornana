@@ -5,7 +5,8 @@ from unittest.mock import Mock
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QEvent, Qt
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtCore import QPointF
+from PySide6.QtGui import QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from app.ui.main_window import FullscreenEntryDialog, MainWindow
@@ -33,6 +34,23 @@ class RemoteKeysTests(unittest.TestCase):
         window = Mock()
         self.assertTrue(MainWindow.eventFilter(window, window.grid, key(Qt.Key_Return, repeat=True)))
         window.activate_item.assert_not_called()
+
+    def test_back_keys_on_grid_leave_folder(self):
+        for code in (Qt.Key_Back, Qt.Key_Escape, Qt.Key_Backspace):
+            window = Mock()
+            self.assertTrue(MainWindow.eventFilter(window, window.grid, key(code)))
+            window.navigate_library_back.assert_called_once_with()
+        window = Mock()
+        MainWindow.eventFilter(window, window.grid, key(Qt.Key_Escape, repeat=True))
+        window.navigate_library_back.assert_not_called()
+
+    def test_back_mouse_button_on_grid_leaves_folder(self):
+        window = Mock()
+        point = QPointF(5, 5)
+        for event_type in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease):
+            event = QMouseEvent(event_type, point, point, Qt.BackButton, Qt.BackButton, Qt.NoModifier)
+            self.assertTrue(MainWindow.eventFilter(window, window.grid.viewport(), event))
+        window.navigate_library_back.assert_called_once_with()
 
     def test_enter_in_sheet_clicks_selected_button(self):
         dialog = Mock()

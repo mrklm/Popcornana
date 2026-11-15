@@ -148,6 +148,7 @@ HARMONISATION_JOURNAL_FILENAME = "harmonisations.json"
 METADATA_FORMAT_VERSION = 1
 # Touches de validation (clavier, pavé numérique, bouton OK des télécommandes).
 VALIDATE_KEYS = (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Select)
+BACK_KEYS = (Qt.Key_Back, Qt.Key_Escape, Qt.Key_Backspace)
 
 
 @dataclass
@@ -793,6 +794,18 @@ class MainWindow(QMainWindow):
             item = self.grid.currentItem()
             if item is not None and not event.isAutoRepeat():
                 self.activate_item(item)
+            return True
+        if watched is self.grid and event.type() == QEvent.KeyPress and event.key() in BACK_KEYS:
+            # Géré ici aussi : sous macOS, les raccourcis n'atteignent pas toujours la grille.
+            if not event.isAutoRepeat():
+                self.navigate_library_back()
+            return True
+        if watched in (self.grid, self.grid.viewport()) and event.type() in (
+            QEvent.MouseButtonPress, QEvent.MouseButtonRelease,
+        ) and event.button() == Qt.BackButton:
+            # Bouton Retour de la télécommande, vu par macOS comme un bouton « précédent » de souris.
+            if event.type() == QEvent.MouseButtonRelease:
+                self.navigate_library_back()
             return True
         if watched is self.grid.viewport():
             if event.type() == QEvent.Resize:

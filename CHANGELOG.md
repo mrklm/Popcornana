@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.77] - 2026-11-15
+
+- Télécommande sous macOS : le bouton Retour fait de nouveau sortir d’un dossier de films ou de série dans la grille (bouton « précédent » de souris, Échap, Retour et Effacement arrière gérés directement par la grille).
+
 ## [1.0.76] - 2026-11-15
 
 - Options : nouvelle fonction « Comparer les sources ». Les vidéos de taille identique dans deux sources sont présentées côte à côte (vidéo, dossier, sous-titres par langue, image cover avec aperçu) ; un clic choisit la version à conserver, chaque nom est modifiable.
