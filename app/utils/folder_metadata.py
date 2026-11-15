@@ -1,5 +1,7 @@
 """Portable folder metadata, kept separate from the movies in the same folder."""
 
+from __future__ import annotations
+
 import json
 from app.utils.safe_files import atomic_write, atomic_copy
 from pathlib import Path

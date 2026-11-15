@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import shutil
 import sys
+import unicodedata
 from pathlib import Path
 
 from PySide6.QtCore import QElapsedTimer, QEvent, QPoint, QRect, QSize, QTimer, Qt
@@ -854,11 +855,11 @@ class MainWindow(QMainWindow):
                 activated.append(root)
         exported = 0
         for item in self.repository.list_media():
-            if any(item.filepath.is_relative_to(root) for root in activated):
+            if any(path_is_relative_to(item.filepath, root) for root in activated):
                 exported += create_portable_metadata_files(item, force=True)
         for folder_path, poster_path in self.repository.list_folder_posters().items():
             folder = Path(folder_path)
-            if any(folder.is_relative_to(root) for root in activated) and source_sync_allowed_for_path(folder):
+            if any(path_is_relative_to(folder, root) for root in activated) and source_sync_allowed_for_path(folder):
                 poster = local_poster_path(poster_path)
                 if folder.exists() and not folder_cover(folder) and poster and poster.exists():
                     try:
@@ -869,7 +870,7 @@ class MainWindow(QMainWindow):
             folder = Path(folder_path)
             description = self.repository.get_setting("folder_description:" + folder_path)
             if (description is not None and folder.exists()
-                    and any(folder.is_relative_to(root) for root in activated)
+                    and any(path_is_relative_to(folder, root) for root in activated)
                     and source_sync_allowed_for_path(folder)
                     and not (folder / PORTABLE_INFO_FILENAME).exists()):
                 try:
@@ -1140,7 +1141,11 @@ class MainWindow(QMainWindow):
         created = create_portable_metadata_files(item, force=True, update=True, replace_cover=bool(dialog.poster_path))
         self.refresh_library()
         if created:
-            self.statusBar().showMessage(f"{created} fichier(s) portable(s) créé(s).")
+            self.statusBar().showMessage(f"{created} fichier(s) portable(s) mis à jour.")
+        elif not source_sync_allowed_for_path(item.filepath.parent):
+            self.statusBar().showMessage("Fiche enregistrée. Synchronisation portable non autorisée pour cette source.")
+        else:
+            self.statusBar().showMessage("Fiche enregistrée. Popinfo.txt non modifié : il appartient à une autre vidéo du dossier ou n’est pas accessible en écriture.")
 
     def edit_series_current(self) -> None:
         if not self.current_entry or self.current_entry.kind != "series":
@@ -2453,7 +2458,7 @@ def create_portable_metadata_files(item: MediaItem, force: bool = False, *, upda
             prefix = "".join(line + "\n" for line in headers if line.startswith("folder_description:"))
             # A shared folder can hold several episodes: do not overwrite another file's sheet.
             owner = parse_portable_info(folder).get("file")
-            if not owner or owner == item.filepath.name or folder_only:
+            if folder_only or portable_sheet_writable_by(folder, owner, item):
                 atomic_write(info_path, (prefix + portable_info_text(item)).encode("utf-8"))
                 created += 1
         except OSError:
@@ -2476,6 +2481,38 @@ def create_portable_metadata_files(item: MediaItem, force: bool = False, *, upda
             except OSError:
                 return created
     return created
+
+
+def portable_sheet_writable_by(folder: Path, owner: str | None, item: MediaItem) -> bool:
+    """Protect another video's sheet only when that video is still present in the folder."""
+    if not owner:
+        return True
+    if same_file_name(owner, item.filepath.name):
+        return True
+    # A sheet copied from a duplicate or left by a renamed file names a video absent from this folder.
+    owner_path = folder / owner
+    if owner_path.exists() and is_video_file(owner_path):
+        return False
+    try:
+        return not any(
+            is_video_file(candidate) and same_file_name(candidate.name, owner)
+            for candidate in folder.iterdir()
+        )
+    except OSError:
+        return False
+
+
+def path_is_relative_to(path: Path, root: Path) -> bool:
+    """Path.is_relative_to() n'existe qu'à partir de Python 3.9 (Catalina : 3.8)."""
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def same_file_name(left: str, right: str) -> bool:
+    return unicodedata.normalize("NFC", left).casefold() == unicodedata.normalize("NFC", right).casefold()
 
 
 def read_source_marker(source: Path) -> dict[str, str]:

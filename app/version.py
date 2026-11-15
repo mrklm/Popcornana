@@ -4,15 +4,15 @@ import sys
 from pathlib import Path
 
 
-FALLBACK_VERSION = "1.0.73"
+FALLBACK_VERSION = "1.0.74"
 
 
 def read_app_version() -> str:
     root_dir = Path(__file__).resolve().parents[1]
-    resource_dir = Path(getattr(sys, "_MEIPASS", root_dir.parent))
+    resource_dir = Path(getattr(sys, "_MEIPASS", root_dir))
     candidates = [
         resource_dir / "VERSION",
-        root_dir.parent / "VERSION",
+        root_dir / "VERSION",
     ]
     for candidate in candidates:
         if candidate.exists():

@@ -1,4 +1,7 @@
 """Find unused cached images without visiting media sources or following symlinks."""
+
+from __future__ import annotations
+
 import os
 from pathlib import Path
 

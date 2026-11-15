@@ -4,6 +4,14 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.74] - 2026-11-15
+
+- Fiches portables : une édition manuelle met de nouveau à jour `Popinfo.txt` lorsqu’il a été copié depuis un doublon, laissé par une vidéo renommée ou écrit avec une autre normalisation des accents (macOS).
+- Message explicite après une édition manuelle lorsque la source n’autorise pas la synchronisation ou que la fiche appartient à une autre vidéo du dossier.
+- Compatibilité Python 3.8 pour le build macOS Catalina : retrait de `dataclass(slots=True)` et de `Path.is_relative_to()`, annotations différées partout.
+- Lecture du fichier `VERSION` corrigée lors d’un lancement depuis les sources.
+- Workflow : vérification Python 3.8 / PySide6 6.2.4 (tests + analyse statique) bloquant la release ; dépendances Catalina figées dans `requirements-macos-catalina.txt`.
+
 ## [1.0.73] - 2026-09-30
 
 - Sous-titre unique utilisé quel que soit son nom, avec MPV comme avec VLC.

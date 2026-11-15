@@ -1,4 +1,5 @@
 import tempfile
+import unicodedata
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -61,6 +62,25 @@ class PortableSyncTests(unittest.TestCase):
     def test_different_movie_sheet_is_preserved(self):
         write_source_marker(self.folder, True)
         info = self.folder / 'Popinfo.txt'
+        (self.folder / 'other.mkv').touch()
         info.write_text('file: other.mkv\ntitle: Other\n')
         create_portable_metadata_files(self.item, force=True, update=True)
         self.assertEqual(parse_portable_info(self.folder)['title'], 'Other')
+
+    def test_sheet_copied_from_duplicate_is_updated(self):
+        write_source_marker(self.folder, True)
+        (self.folder / 'Popinfo.txt').write_text('file: film.1080p.mkv\ntitle: Ancien\n')
+        create_portable_metadata_files(self.item, force=True, update=True)
+        values = parse_portable_info(self.folder)
+        self.assertEqual(values['title'], 'Film')
+        self.assertEqual(values['file'], 'film.mkv')
+
+    def test_owner_name_with_other_unicode_normalization_is_updated(self):
+        write_source_marker(self.folder, True)
+        video = self.folder / 'Am\u00e9lie.mkv'
+        video.touch()
+        item = MediaItem(video, 'movie', 'Amélie', year=2001)
+        decomposed = unicodedata.normalize('NFD', video.name)
+        (self.folder / 'Popinfo.txt').write_text(f'file: {decomposed}\ntitle: Ancien\n', encoding='utf-8')
+        create_portable_metadata_files(item, force=True, update=True)
+        self.assertEqual(parse_portable_info(self.folder)['title'], 'Amélie')
