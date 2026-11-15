@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.81] - 2026-11-15
+
+- Build Linux : l’image du workflow est figée sur Ubuntu 24.04. Avec `ubuntu-latest` (passé à Ubuntu 26.04), la 1.0.80 embarquait un Python compilé avec des instructions AVX2 et ne démarrait pas sur les processeurs plus anciens (« Instruction non permise »).
+
 ## [1.0.80] - 2026-11-15
 
 - Aide : nouvelle section « Télécommande » (tableau des boutons par défaut, assignation, limites pendant la lecture dans VLC/MPV) et section « Comparer les sources » complétée.

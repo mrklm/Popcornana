@@ -62,7 +62,9 @@ jobs:
               dist/Popcornana-*-windows-x64.zip
               dist/Popcornana-*-windows-x64.zip.sha256
           - target: linux-x64
-            os: ubuntu-latest
+            # Version figée : ubuntu-latest (26.04) produit un Python compilé avec AVX2 et glibc 2.38,
+            # qui ne démarre pas sur les processeurs sans AVX2.
+            os: ubuntu-24.04
             artifact_pattern: |
               dist/Popcornana-*-linux-x64.tar.gz
               dist/Popcornana-*-linux-x64.tar.gz.sha256
