@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -285,6 +286,48 @@ class MediaRepository:
                         str(item.filepath),
                     ),
                 )
+
+    def rename_path(self, old: str | Path, new: str | Path) -> None:
+        """Reporte le renommage d'un fichier ou d'un dossier dans tous les chemins enregistrés."""
+        old, new = str(old), str(new)
+        prefix = old.rstrip(os.sep) + os.sep
+        length = len(prefix)
+
+        def moved(value: str | None) -> str | None:
+            if value == old:
+                return new
+            if value and value[:length] == prefix:
+                return new.rstrip(os.sep) + os.sep + value[length:]
+            return None
+
+        with self._connect() as connection:
+            for row in connection.execute("SELECT id, filepath, poster_path, backdrop_path FROM media").fetchall():
+                values = {column: moved(row[column]) for column in ("filepath", "poster_path", "backdrop_path")}
+                changes = {column: value for column, value in values.items() if value is not None}
+                if not changes:
+                    continue
+                if "filepath" in changes:
+                    # Une ancienne ligne orpheline pourrait déjà porter ce chemin.
+                    connection.execute("DELETE FROM media WHERE filepath = ? AND id != ?", (changes["filepath"], row["id"]))
+                assignments = ", ".join(f"{column} = ?" for column in changes)
+                connection.execute(f"UPDATE media SET {assignments} WHERE id = ?", (*changes.values(), row["id"]))
+            for table, column in (("folder_categories", "folder_path"), ("folder_posters", "folder_path")):
+                for row in connection.execute(f"SELECT {column} FROM {table}").fetchall():
+                    target = moved(row[column])
+                    if target is not None:
+                        connection.execute(f"DELETE FROM {table} WHERE {column} = ?", (target,))
+                        connection.execute(f"UPDATE {table} SET {column} = ? WHERE {column} = ?", (target, row[column]))
+            for table, column in (("folder_posters", "poster_path"),):
+                for row in connection.execute(f"SELECT folder_path, {column} FROM {table}").fetchall():
+                    target = moved(row[column])
+                    if target is not None:
+                        connection.execute(f"UPDATE {table} SET {column} = ? WHERE folder_path = ?", (target, row["folder_path"]))
+            key_prefix = "folder_description:"
+            for row in connection.execute("SELECT key FROM settings WHERE substr(key, 1, ?) = ?", (len(key_prefix), key_prefix)).fetchall():
+                target = moved(row["key"][len(key_prefix):])
+                if target is not None:
+                    connection.execute("DELETE FROM settings WHERE key = ?", (key_prefix + target,))
+                    connection.execute("UPDATE settings SET key = ? WHERE key = ?", (key_prefix + target, row["key"]))
 
     def list_media(self) -> list[MediaItem]:
         with self._connect() as connection:

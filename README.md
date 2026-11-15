@@ -1,6 +1,6 @@
 # Popcornana
 
-Version actuelle: **1.0.75**
+Version actuelle: **1.0.76**
 
 Popcornana est une application desktop locale pour organiser une médiathèque de films et séries. Elle scanne un dossier de vidéos, nettoie les noms de fichiers, affiche les médias dans une grille visuelle, récupère des métadonnées depuis OMDb et/ou TMDb, garde les affiches en cache local, puis lance la lecture avec VLC en plein écran quand il est disponible, avec sous-titre détecté automatiquement.
 
@@ -31,6 +31,7 @@ L'application conserve ses données localement: les vidéos restent dans le doss
 - Création de `cover.*` et `Popinfo.txt` dans le dossier du film quand une fiche est enrichie sur une source autorisée, sans écraser les fichiers existants lors des enrichissements automatiques.
 - Lecture automatique de `Popinfo.txt` et `cover.*` pendant `Actualiser`, pratique pour transporter une médiathèque entre plusieurs ordinateurs.
 - Synchronisation des métadonnées entre sources avant les appels TMDb/OMDb quand un doublon local fiable possède déjà `cover.*` ou `Popinfo.txt`.
+- Comparaison de deux sources (Options) : les vidéos de taille identique sont présentées côte à côte pour harmoniser le nom du dossier, de la vidéo, des sous-titres et l’image `cover`, sans suppression, avec conservation en `.bak` et annulation de la dernière harmonisation.
 - Édition commune des métadonnées de série sans modifier les titres des épisodes.
 - Choix persistant des sources de métadonnées dans `Options avancées`.
 - Si OMDb et TMDb sont sélectionnés ensemble, TMDb est essayé en premier puis OMDb sert de secours.
@@ -209,9 +210,9 @@ Le workflow est défini dans `.github/workflows/release.yml`. Il peut être lanc
 Exemple de release:
 
 ```bash
-git tag v1.0.75 main
+git tag v1.0.76 main
 git push origin main
-git push origin v1.0.75
+git push origin v1.0.76
 ```
 
 GitHub Actions construit les artefacts des trois systèmes et les ajoute à la release GitHub correspondant au fichier `VERSION`.
@@ -289,6 +290,6 @@ Références : [dépendances Qt sous Linux](https://doc.qt.io/qt-6/linux-require
 
 ## Version
 
-La version actuelle est `1.0.75`.
+La version actuelle est `1.0.76`.
 
 Voir [CHANGELOG.md](CHANGELOG.md) pour le détail de l'état de la release.

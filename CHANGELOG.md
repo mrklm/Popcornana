@@ -4,6 +4,12 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.76] - 2026-11-15
+
+- Options : nouvelle fonction « Comparer les sources ». Les vidéos de taille identique dans deux sources sont présentées côte à côte (vidéo, dossier, sous-titres par langue, image cover avec aperçu) ; un clic choisit la version à conserver, chaque nom est modifiable.
+- Harmonisation sûre : aucune suppression ni copie de vidéo, fichiers remplacés conservés en `.bak`, conflits de noms bloquants, base de données mise à jour (fiches, affiches, catégories, descriptions de dossier) et annulation de la dernière harmonisation.
+- Séries, dossiers à plusieurs vidéos et tailles partagées par plusieurs vidéos exclus de la comparaison.
+
 ## [1.0.75] - 2026-11-15
 
 - Télécommande sous macOS : le bouton OK/Entrée ouvre de nouveau la fiche depuis la grille, puis lance le film (Qt n’active pas les éléments de liste avec Entrée sous macOS).

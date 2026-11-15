@@ -46,11 +46,13 @@ from app.omdb.client import OmdbClient, apply_omdb_result
 from app.scanner.name_cleaner import is_video_file
 from app.scanner.video_scanner import category_for_path, scan_videos
 from app.tmdb.client import TmdbClient, apply_tmdb_result
-from app.utils.paths import POSTERS_DIR, ensure_data_dirs, resource_path
+from app.utils.paths import DATA_DIR, POSTERS_DIR, ensure_data_dirs, resource_path
 from app.utils.folder_metadata import folder_cover, read_folder_description, write_folder_cover, write_folder_description
 from app.utils.player import PLAYER_LABELS, get_available_players, open_media
 from app.utils.safe_files import atomic_write, atomic_copy
 from app.utils.cache_cleanup import unused_images, remove_unused_images
+from app.utils import source_compare
+from app.ui.source_compare_dialog import SourceCompareDialog, SourcePairDialog
 from app.version import APP_VERSION
 
 
@@ -142,6 +144,7 @@ PORTABLE_INFO_FILENAME = "Popinfo.txt"
 PORTABLE_COVER_STEM = "cover"
 PORTABLE_COVER_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 SOURCE_MARKER_FILENAME = ".popcornana-source"
+HARMONISATION_JOURNAL_FILENAME = "harmonisations.json"
 METADATA_FORMAT_VERSION = 1
 # Touches de validation (clavier, pavé numérique, bouton OK des télécommandes).
 VALIDATE_KEYS = (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Select)
@@ -564,6 +567,30 @@ class MainWindow(QMainWindow):
         cleanup_button.clicked.connect(self.clean_unused_cache)
         cache_layout.addWidget(cleanup_button)
         options_layout.addWidget(cache_section)
+        compare_section = QWidget()
+        compare_section.setObjectName("optionSection")
+        compare_layout = QVBoxLayout(compare_section)
+        compare_layout.setContentsMargins(16, 16, 16, 16)
+        compare_title = QLabel("Comparer les sources")
+        compare_title.setObjectName("sectionTitle")
+        compare_layout.addWidget(compare_title)
+        compare_hint = QLabel(
+            "Retrouve les vidéos de taille identique dans deux sources et vous permet d’harmoniser, de l’une à l’autre, "
+            "le nom du dossier, de la vidéo, des sous-titres et l’image cover. Aucun fichier n’est supprimé : "
+            "les fichiers remplacés sont conservés en .bak et la dernière harmonisation peut être annulée."
+        )
+        compare_hint.setWordWrap(True)
+        compare_layout.addWidget(compare_hint)
+        compare_buttons = QHBoxLayout()
+        compare_button = QPushButton("Comparer les sources…")
+        compare_button.clicked.connect(self.compare_sources)
+        compare_buttons.addWidget(compare_button)
+        undo_compare_button = QPushButton("Annuler la dernière harmonisation")
+        undo_compare_button.clicked.connect(self.undo_last_harmonisation)
+        compare_buttons.addWidget(undo_compare_button)
+        compare_buttons.addStretch()
+        compare_layout.addLayout(compare_buttons)
+        options_layout.addWidget(compare_section)
         options_layout.addStretch()
         self.tabs.addTab(scrollable_panel(options_tab), "Options")
 
@@ -625,6 +652,125 @@ class MainWindow(QMainWindow):
         if failed:
             message += f"\n{failed} fichier(s) n’ont pas pu être supprimés."
         QMessageBox.information(self, "Nettoyage du cache", message)
+
+    def compare_sources(self) -> None:
+        title = "Comparer les sources"
+        sources = [source for source in self.repository.list_media_sources() if Path(source).expanduser().exists()]
+        if len(sources) < 2:
+            QMessageBox.information(self, title, "Au moins deux sources disponibles sont nécessaires pour les comparer.")
+            return
+        chooser = SourcePairDialog(sources, self)
+        if chooser.exec() != QDialog.Accepted:
+            return
+        left_root, right_root = chooser.selected()
+        if (left_root == right_root or path_is_relative_to(left_root, right_root)
+                or path_is_relative_to(right_root, left_root)):
+            QMessageBox.warning(self, title, "Choisissez deux sources distinctes, dont aucune ne contient l’autre.")
+            return
+        not_allowed = [str(root) for root in (left_root, right_root) if not source_sync_allowed(root)]
+        if not_allowed:
+            QMessageBox.warning(
+                self, title,
+                "La comparaison modifie les dossiers des deux sources. Cochez d’abord « Synchro autorisée » "
+                "dans Gérer les sources pour :\n\n" + "\n".join(not_allowed),
+            )
+            return
+        if self.repository.get_setting("source_compare_confirmed") != "1":
+            answer = QMessageBox.question(
+                self, title,
+                "Cette fonction peut renommer des dossiers, des vidéos et des sous-titres, et remplacer des images "
+                "cover dans vos sources.\n\nAucun fichier n’est supprimé : chaque fichier remplacé est conservé en .bak, "
+                "et la dernière harmonisation peut être annulée depuis Options.\n\nContinuer ?",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+            )
+            if answer != QMessageBox.Yes:
+                return
+            self.repository.set_setting("source_compare_confirmed", "1")
+
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        self.statusBar().showMessage("Comparaison des sources en cours…")
+        QApplication.processEvents()
+        try:
+            pairs, ambiguous = source_compare.find_pairs(left_root, right_root)
+            to_review = []
+            for left_video, right_video in pairs:
+                try:
+                    sides = source_compare.collect_pair(left_root, left_video, right_root, right_video)
+                    if not source_compare.pair_is_identical(sides["left"], sides["right"]):
+                        to_review.append(sides)
+                except OSError:
+                    continue
+        except OSError as error:
+            QMessageBox.warning(self, title, f"Comparaison impossible : {error}")
+            return
+        finally:
+            QApplication.restoreOverrideCursor()
+            self.statusBar().clearMessage()
+
+        summary = f"{len(pairs)} vidéo(s) de taille identique trouvée(s), {len(to_review)} avec des différences."
+        if ambiguous:
+            summary += f"\n{ambiguous} taille(s) partagée(s) par plusieurs vidéos ont été ignorées."
+        if not to_review:
+            QMessageBox.information(self, title, summary)
+            return
+
+        session = source_compare.new_session(left_root, right_root)
+        journal_path = DATA_DIR / HARMONISATION_JOURNAL_FILENAME
+
+        def apply_choices(sides, choices):
+            operations = source_compare.build_operations(sides, choices)
+            if not operations:
+                return None
+            conflicts = source_compare.check_conflicts(operations)
+            if conflicts:
+                return "Rien n’a été modifié : ces éléments existent déjà.\n\n" + "\n".join(conflicts)
+            done, error = source_compare.apply_operations(operations)
+            for old, new in source_compare.database_renames(done):
+                self.repository.rename_path(old, new)
+            if done:
+                sessions = source_compare.load_journal(journal_path)
+                if session["operations"]:
+                    sessions[-1] = session  # même session : la dernière entrée du journal
+                else:
+                    sessions.append(session)
+                session["operations"].extend(done)
+                source_compare.save_journal(journal_path, sessions)
+            if error:
+                return f"Harmonisation interrompue : {error}\n\nLes opérations déjà faites peuvent être annulées depuis Options."
+            return None
+
+        dialog = SourceCompareDialog(to_review, THEMES.get(self.repository.get_setting("theme") or DEFAULT_THEME, THEMES[DEFAULT_THEME]), apply_choices, self)
+        dialog.exec()
+        self.refresh_library()
+        self.statusBar().showMessage(f"Comparaison terminée : {dialog.saved} enregistrée(s), {dialog.skipped} passée(s).")
+
+    def undo_last_harmonisation(self) -> None:
+        title = "Annuler la dernière harmonisation"
+        journal_path = DATA_DIR / HARMONISATION_JOURNAL_FILENAME
+        sessions = source_compare.load_journal(journal_path)
+        if not sessions:
+            QMessageBox.information(self, title, "Aucune harmonisation à annuler.")
+            return
+        session = sessions[-1]
+        operations = session.get("operations", [])
+        answer = QMessageBox.question(
+            self, title,
+            f"Annuler l’harmonisation du {session.get('date', '')[:16].replace('T', ' à ')} (UTC) ?\n"
+            f"{session.get('left', '')}\n{session.get('right', '')}\n\n{len(operations)} opération(s) seront annulées.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if answer != QMessageBox.Yes:
+            return
+        failures = source_compare.undo_operations(operations)
+        for old, new in reversed(source_compare.database_renames(operations)):
+            self.repository.rename_path(new, old)
+        sessions.pop()
+        source_compare.save_journal(journal_path, sessions)
+        self.refresh_library()
+        if failures:
+            QMessageBox.warning(self, title, "Certaines opérations n’ont pas pu être annulées :\n\n" + "\n".join(failures))
+        else:
+            QMessageBox.information(self, title, "La dernière harmonisation a été annulée.")
 
     def change_details_visibility(self, visible: bool) -> None:
         self.repository.set_setting("show_details_panel", "1" if visible else "0")
@@ -3006,6 +3152,22 @@ def build_help_html() -> str:
         <li>Avant un remplacement, la version précédente est conservée dans un fichier <code>.bak</code>. Le nouveau fichier est préparé avant de remplacer l’ancien ; il n’est pas nécessaire d’attendre la fermeture du programme.</li>
         <li>Dans un dossier contenant plusieurs vidéos, un <code>Popinfo.txt</code> identifié comme appartenant à une autre vidéo est préservé.</li>
         <li>La description d’un dossier de films utilise le champ <code>folder_description</code> de <code>Popinfo.txt</code> ; son visuel utilise <code>repocover.*</code>, séparément de l’affiche du film.</li>
+    </ul>
+
+    <h2>Comparer les sources</h2>
+    <p>
+        Dans <b>Options</b>, <b>Comparer les sources…</b> permet de reproduire sur une source le rangement fait sur une autre,
+        par exemple entre un disque interne et un disque externe.
+    </p>
+    <ul>
+        <li>Les deux sources doivent avoir <b>Synchro autorisée</b> dans <b>Gérer les sources</b>.</li>
+        <li>Deux vidéos sont considérées comme le même film lorsque leurs fichiers ont <b>exactement la même taille</b>, à l’octet près. Les tailles partagées par plusieurs vidéos, les séries et les dossiers contenant plusieurs vidéos sont ignorés.</li>
+        <li>Pour chaque film présentant des différences, la fenêtre affiche côte à côte le fichier vidéo, le dossier, les sous-titres (un par langue) et l’image <code>cover</code> avec son aperçu.</li>
+        <li>Cliquez sur la version à conserver : un liseré l’entoure. Les éléments déjà identiques sont encadrés des deux côtés. <b>Renommer…</b> permet de corriger un nom ; l’extension est conservée.</li>
+        <li><b>Enregistrer</b> applique les choix aux deux sources puis passe au film suivant. <b>Passer</b> ignore ce film, <b>Fermer</b> arrête la comparaison.</li>
+        <li>Choisir une image copie aussi le <code>Popinfo.txt</code> du même côté. Le nom de la vidéo indiqué dans <code>Popinfo.txt</code> suit les renommages.</li>
+        <li>Aucun fichier n’est supprimé et aucune vidéo n’est copiée ni déplacée. Un sous-titre ou une image remplacé est conservé en <code>.bak</code>. Si un nom visé existe déjà, rien n’est modifié pour ce film.</li>
+        <li><b>Annuler la dernière harmonisation</b> remet en place tous les fichiers de la dernière comparaison.</li>
     </ul>
 
     <h2>Nettoyage du cache</h2>
