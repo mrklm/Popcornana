@@ -7,6 +7,7 @@ __pycache__/
 media.db
 data/posters/*
 data/cache/*
+data/harmonisations.json
 !data/posters/.gitkeep
 !data/cache/.gitkeep
 dist/
