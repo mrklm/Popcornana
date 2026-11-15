@@ -4,8 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
-## [Non publié]
+## [1.0.75] - 2026-11-15
 
+- Télécommande sous macOS : le bouton OK/Entrée ouvre de nouveau la fiche depuis la grille, puis lance le film (Qt n’active pas les éléments de liste avec Entrée sous macOS).
+- Fiche : Entrée et les flèches gauche/droite fonctionnent même si macOS ne donne pas le focus clavier aux boutons.
+- Interface : messages d’aide et d’alerte passés au vouvoiement.
 - Tests : comparaison des chemins résolus dans le test de nettoyage du cache (`/var` → `/private/var` sous macOS).
 
 ## [1.0.74] - 2026-11-15

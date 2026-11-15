@@ -143,6 +143,8 @@ PORTABLE_COVER_STEM = "cover"
 PORTABLE_COVER_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 SOURCE_MARKER_FILENAME = ".popcornana-source"
 METADATA_FORMAT_VERSION = 1
+# Touches de validation (clavier, pavé numérique, bouton OK des télécommandes).
+VALIDATE_KEYS = (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Select)
 
 
 @dataclass
@@ -226,6 +228,7 @@ class MainWindow(QMainWindow):
         self._library_right_press = QElapsedTimer()
         self._library_right_position = QPoint()
         self.grid.viewport().installEventFilter(self)
+        self.grid.installEventFilter(self)
 
         self.back_button = QPushButton("Retour")
         self.back_button.clicked.connect(self.close_library_folder)
@@ -257,7 +260,7 @@ class MainWindow(QMainWindow):
         self.meta_label.setObjectName("metaLabel")
         self.meta_label.setStyleSheet("color: #6b7280;")
 
-        self.overview_label = QLabel("Choisis un dossier, scanne tes vidéos, puis enrichis avec TMDb.")
+        self.overview_label = QLabel("Choisissez un dossier, scannez vos vidéos, puis enrichissez-les avec TMDb.")
         self.overview_label.setObjectName("overviewLabel")
         self.overview_label.setWordWrap(True)
         self.overview_label.setAlignment(Qt.AlignTop)
@@ -639,6 +642,12 @@ class MainWindow(QMainWindow):
             self.showFullScreen()
 
     def eventFilter(self, watched, event) -> bool:
+        if watched is self.grid and event.type() == QEvent.KeyPress and event.key() in VALIDATE_KEYS:
+            # Sous macOS, Qt n'émet pas itemActivated sur Entrée : on active l'élément nous-mêmes.
+            item = self.grid.currentItem()
+            if item is not None and not event.isAutoRepeat():
+                self.activate_item(item)
+            return True
         if watched is self.grid.viewport():
             if event.type() == QEvent.Resize:
                 # The viewport also changes when a hidden tab is shown or a panel is toggled.
@@ -782,7 +791,7 @@ class MainWindow(QMainWindow):
         sources = self.repository.list_media_sources()
         if not sources:
             if interactive:
-                QMessageBox.information(self, "Popcornana", "Ajoute d'abord un dossier de médias.")
+                QMessageBox.information(self, "Popcornana", "Ajoutez d'abord un dossier de médias.")
             return
 
         available_roots = [Path(source).expanduser() for source in sources if Path(source).expanduser().exists()]
@@ -885,7 +894,7 @@ class MainWindow(QMainWindow):
         sources = self.repository.list_media_sources()
         available_sources = [source for source in sources if Path(source).expanduser().exists()]
         if not available_sources:
-            QMessageBox.information(self, "Popcornana", "Ajoute d'abord un dossier de médias disponible.")
+            QMessageBox.information(self, "Popcornana", "Ajoutez d'abord un dossier de médias disponible.")
             return
 
         dialog = FolderCategoriesDialog(
@@ -921,7 +930,7 @@ class MainWindow(QMainWindow):
         use_tmdb = self.tmdb_source_button.isChecked()
         use_omdb = self.omdb_source_button.isChecked()
         if not use_tmdb and not use_omdb:
-            QMessageBox.information(self, "Popcornana", "Sélectionne au moins une source dans Options avancées.")
+            QMessageBox.information(self, "Popcornana", "Sélectionnez au moins une source dans Options avancées.")
             return
 
         available_tmdb = use_tmdb and self.tmdb.is_configured
@@ -1007,7 +1016,7 @@ class MainWindow(QMainWindow):
 
     def enrich_library(self) -> None:
         if not self.tmdb.is_configured:
-            QMessageBox.warning(self, "TMDb", "Ajoute TMDB_API_KEY dans un fichier .env pour récupérer les métadonnées.")
+            QMessageBox.warning(self, "TMDb", "Ajoutez TMDB_API_KEY dans un fichier .env pour récupérer les métadonnées.")
             return
 
         updated = 0
@@ -1031,7 +1040,7 @@ class MainWindow(QMainWindow):
 
     def enrich_library_with_omdb(self) -> None:
         if not self.omdb.is_configured:
-            QMessageBox.warning(self, "OMDb", "Ajoute OMDB_API_KEY dans un fichier .env pour récupérer les métadonnées.")
+            QMessageBox.warning(self, "OMDb", "Ajoutez OMDB_API_KEY dans un fichier .env pour récupérer les métadonnées.")
             return
 
         updated = 0
@@ -1073,7 +1082,7 @@ class MainWindow(QMainWindow):
         if not self.current_item:
             return
         if not self.tmdb.is_configured:
-            QMessageBox.warning(self, "TMDb", "Ajoute TMDB_API_KEY dans un fichier .env pour lancer la recherche.")
+            QMessageBox.warning(self, "TMDb", "Ajoutez TMDB_API_KEY dans un fichier .env pour lancer la recherche.")
             return
         try:
             results = self.tmdb.search(self.current_item)
@@ -1098,7 +1107,7 @@ class MainWindow(QMainWindow):
         if not self.current_item:
             return
         if not self.omdb.is_configured:
-            QMessageBox.warning(self, "OMDb", "Ajoute OMDB_API_KEY dans un fichier .env pour lancer la recherche.")
+            QMessageBox.warning(self, "OMDb", "Ajoutez OMDB_API_KEY dans un fichier .env pour lancer la recherche.")
             return
         try:
             results = self.omdb.search(self.current_item)
@@ -1447,7 +1456,7 @@ class MainWindow(QMainWindow):
         self.poster_label.setText("Aucune affiche")
         self.title_label.setText("Médiathèque vide")
         self.meta_label.setText("")
-        self.overview_label.setText("Choisis un dossier puis lance un scan.")
+        self.overview_label.setText("Choisissez un dossier puis lancez un scan.")
         self.path_label.setText("")
         self.play_button.setText("Visionner")
         self.play_button.setEnabled(False)
@@ -1467,7 +1476,7 @@ class MainWindow(QMainWindow):
             meta.append(f"Réalisateur: {reference_item.director}")
         self.title_label.setText(entry.title)
         self.meta_label.setText(" | ".join(meta))
-        self.overview_label.setText(reference_item.overview or "Ouvre la série pour afficher ses épisodes.")
+        self.overview_label.setText(reference_item.overview or "Ouvrez la série pour afficher ses épisodes.")
         self.path_label.setText("")
         self.play_button.setText("Ouvrir la série")
         self.play_button.setEnabled(True)
@@ -1901,15 +1910,19 @@ class FullscreenEntryDialog(QDialog):
             widget.installEventFilter(self)
 
     def eventFilter(self, watched, event) -> bool:
-        if (
-            event.type() == QEvent.KeyPress
-            and watched in (self.return_button, self.watch_button)
-            and event.key() in (Qt.Key_Left, Qt.Key_Right)
-        ):
-            target = self.return_button if watched is self.watch_button else self.watch_button
+        if event.type() == QEvent.KeyPress and event.key() in (Qt.Key_Left, Qt.Key_Right):
+            # Le bouton par défaut sert d'état : sous macOS, les boutons n'ont pas toujours le focus clavier.
+            current = self.return_button if self.return_button.isDefault() else self.watch_button
+            target = self.return_button if current is self.watch_button else self.watch_button
             if target.isEnabled():
                 target.setFocus(Qt.OtherFocusReason)
                 target.setDefault(True)
+            return True
+        if event.type() == QEvent.KeyPress and event.key() in VALIDATE_KEYS:
+            if not event.isAutoRepeat():
+                button = self.return_button if self.return_button.isDefault() else self.watch_button
+                if button.isEnabled():
+                    button.click()
             return True
         if event.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease):
             if event.button() in (Qt.RightButton, Qt.BackButton):
