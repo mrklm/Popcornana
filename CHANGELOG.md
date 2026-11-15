@@ -4,6 +4,11 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [1.0.78] - 2026-11-15
+
+- Options : nouvelle section « Télécommande » pour assigner des boutons supplémentaires aux actions de l’interface (flèches, Valider, Retour, Menu, Accueil, pages, zoom, plein écran). Les boutons par défaut restent actifs ; conflits refusés ; réglage propre à chaque ordinateur.
+- Nouvelles actions par défaut dans la grille : touche Menu (menu d’édition de la fiche sélectionnée) et touche Accueil (début de la bibliothèque).
+
 ## [1.0.77] - 2026-11-15
 
 - Télécommande sous macOS : le bouton Retour fait de nouveau sortir d’un dossier de films ou de série dans la grille (bouton « précédent » de souris, Échap, Retour et Effacement arrière gérés directement par la grille).

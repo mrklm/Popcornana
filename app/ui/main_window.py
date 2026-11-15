@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFileDialog,
+    QGridLayout,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -53,6 +54,8 @@ from app.utils.safe_files import atomic_write, atomic_copy
 from app.utils.cache_cleanup import unused_images, remove_unused_images
 from app.utils import source_compare
 from app.ui.source_compare_dialog import SourceCompareDialog, SourcePairDialog
+from app.ui import remote_bindings
+from app.ui.remote_bindings import RemoteBindings, RemoteCaptureDialog
 from app.version import APP_VERSION
 
 
@@ -179,6 +182,15 @@ class MainWindow(QMainWindow):
         self.current_movie_folder_path: str | None = None
         self.library_zoom = 100
         self._maximized_before_fullscreen = False
+        self.remote = RemoteBindings({
+            "menu": self.open_current_context_menu,
+            "home": self.go_library_home,
+            "zoom_in": lambda: self.change_library_zoom(10),
+            "zoom_out": lambda: self.change_library_zoom(-10),
+            "fullscreen": self.toggle_fullscreen,
+        }, self)
+        self.remote.load(self.repository.get_setting(remote_bindings.SETTING_KEY))
+        self.remote_labels: dict[str, QLabel] = {}
 
         self.setWindowTitle(f"Popcornana {APP_VERSION}")
         if APP_ICON_PATH.exists():
@@ -186,6 +198,9 @@ class MainWindow(QMainWindow):
         self.resize(1180, 760)
         self._build_ui()
         self._load_saved_state()
+        app = QApplication.instance()
+        if app is not None:
+            app.installEventFilter(self.remote)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -592,6 +607,7 @@ class MainWindow(QMainWindow):
         compare_buttons.addStretch()
         compare_layout.addLayout(compare_buttons)
         options_layout.addWidget(compare_section)
+        options_layout.addWidget(self._build_remote_section())
         options_layout.addStretch()
         self.tabs.addTab(scrollable_panel(options_tab), "Options")
 
@@ -794,6 +810,13 @@ class MainWindow(QMainWindow):
             item = self.grid.currentItem()
             if item is not None and not event.isAutoRepeat():
                 self.activate_item(item)
+            return True
+        if watched is self.grid and event.type() == QEvent.KeyPress and event.key() in (Qt.Key_Menu, Qt.Key_HomePage):
+            if not event.isAutoRepeat():
+                if event.key() == Qt.Key_Menu:
+                    self.open_current_context_menu()
+                else:
+                    self.go_library_home()
             return True
         if watched is self.grid and event.type() == QEvent.KeyPress and event.key() in BACK_KEYS:
             # Géré ici aussi : sous macOS, les raccourcis n'atteignent pas toujours la grille.
@@ -1598,6 +1621,107 @@ class MainWindow(QMainWindow):
                 self.grid.setCurrentRow(row)
                 break
         self.statusBar().showMessage("Description du dossier enregistrée.")
+
+    def _build_remote_section(self) -> QWidget:
+        section = QWidget()
+        section.setObjectName("optionSection")
+        layout = QVBoxLayout(section)
+        layout.setContentsMargins(16, 16, 16, 16)
+        title = QLabel("Télécommande")
+        title.setObjectName("sectionTitle")
+        layout.addWidget(title)
+        hint = QLabel(
+            "Si votre télécommande ne fonctionne pas avec les boutons par défaut, assignez-lui ses propres boutons. "
+            "Un bouton assigné s’ajoute aux boutons par défaut, qui restent actifs. Les boutons interceptés par le "
+            "système (volume, touches multimédia…) ne peuvent pas être assignés. Ces réglages sont propres à cet ordinateur."
+        )
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(12)
+        for column, text in enumerate(("Action", "Par défaut", "Boutons assignés")):
+            header = QLabel(f"<b>{text}</b>")
+            grid.addWidget(header, 0, column)
+        for row, (action, label, defaults) in enumerate(remote_bindings.ACTIONS, start=1):
+            grid.addWidget(QLabel(label), row, 0)
+            default_label = QLabel(defaults)
+            default_label.setWordWrap(True)
+            default_label.setStyleSheet("color: gray;")
+            grid.addWidget(default_label, row, 1)
+            assigned = QLabel()
+            assigned.setWordWrap(True)
+            self.remote_labels[action] = assigned
+            grid.addWidget(assigned, row, 2)
+            assign_button = QPushButton("Assigner…")
+            assign_button.clicked.connect(lambda _=False, action=action: self.assign_remote_button(action))
+            grid.addWidget(assign_button, row, 3)
+            clear_button = QPushButton("Effacer")
+            clear_button.clicked.connect(lambda _=False, action=action: self.clear_remote_buttons(action))
+            grid.addWidget(clear_button, row, 4)
+        grid.setColumnStretch(1, 2)
+        grid.setColumnStretch(2, 2)
+        layout.addLayout(grid)
+        reset_row = QHBoxLayout()
+        reset_button = QPushButton("Revenir aux boutons par défaut")
+        reset_button.clicked.connect(lambda: self.clear_remote_buttons(None))
+        reset_row.addWidget(reset_button)
+        reset_row.addStretch()
+        layout.addLayout(reset_row)
+        self.refresh_remote_labels()
+        return section
+
+    def refresh_remote_labels(self) -> None:
+        for action, label in self.remote_labels.items():
+            names = [remote_bindings.describe(b) for b in self.remote.bindings.get(action, [])]
+            label.setText(", ".join(names) if names else "—")
+
+    def _save_remote_bindings(self) -> None:
+        self.repository.set_setting(remote_bindings.SETTING_KEY, self.remote.dump())
+        self.refresh_remote_labels()
+
+    def assign_remote_button(self, action: str) -> None:
+        label = remote_bindings.ACTION_LABELS[action]
+        dialog = RemoteCaptureDialog(label, self)
+        self.remote.paused = True
+        try:
+            accepted = dialog.exec() == QDialog.Accepted
+        finally:
+            self.remote.paused = False
+        if not accepted or dialog.binding is None:
+            return
+        error = self.remote.add(action, dialog.binding)
+        if error:
+            QMessageBox.warning(self, "Télécommande", error)
+            return
+        self._save_remote_bindings()
+        self.statusBar().showMessage(f"« {remote_bindings.describe(dialog.binding)} » assigné à « {label} ».")
+
+    def clear_remote_buttons(self, action: str | None) -> None:
+        if action is None and self.remote.bindings and QMessageBox.question(
+            self, "Télécommande", "Effacer tous les boutons assignés et revenir aux boutons par défaut ?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        ) != QMessageBox.Yes:
+            return
+        self.remote.clear(action)
+        self._save_remote_bindings()
+
+    def open_current_context_menu(self) -> None:
+        if self.tabs.currentIndex() != 0:
+            return
+        item = self.grid.currentItem()
+        if item is not None:
+            self.show_library_context_menu(self.grid.visualItemRect(item).center())
+
+    def go_library_home(self) -> None:
+        self.tabs.setCurrentIndex(0)
+        if self.current_series_title or self.current_movie_folder_path:
+            self.close_library_folder()
+        for row, entry in enumerate(self.entries):
+            if entry.kind != "header":
+                self.grid.setCurrentRow(row)
+                break
+        self.grid.scrollToTop()
+        self.grid.setFocus()
 
     def navigate_library_back(self) -> None:
         if self.current_series_title or self.current_movie_folder_path:
@@ -3148,6 +3272,8 @@ def build_help_html() -> str:
         <li><b>Visionner</b> est présélectionné : <b>OK/Entrée</b> lance le film. Pour un dossier, le bouton permet de l’ouvrir.</li>
         <li>Les flèches <b>gauche/droite</b> alternent en boucle entre <b>Visionner</b> et <b>Retour à la liste</b>. OK/Entrée active le bouton sélectionné.</li>
         <li><b>Retour</b> ferme la fiche. Dans la grille, Retour ou Échap permet de quitter un dossier lorsqu’une touche Retour dédiée est utilisée.</li>
+        <li><b>Menu</b> ouvre le menu d’édition de la fiche sélectionnée ; <b>Accueil</b> revient au début de la bibliothèque, en quittant le dossier ouvert.</li>
+        <li>Dans <b>Options › Télécommande</b>, <b>Assigner…</b> associe un bouton de votre télécommande à une action (flèches, Valider, Retour, Menu, Accueil, pages, zoom, plein écran) lorsque les boutons par défaut ne suffisent pas. Le bouton assigné s’ajoute aux boutons par défaut ; <b>Effacer</b> ou <b>Revenir aux boutons par défaut</b> annule les assignations. Les boutons gérés directement par le système (volume, touches multimédia) ne peuvent pas être assignés, et ces réglages ne s’appliquent pas pendant la lecture dans VLC ou MPV.</li>
         <li>Si le bouton Retour de votre télécommande émule un <b>clic droit</b> : dans la grille, un appui court ouvre le menu d’édition ; un appui long d’environ <b>0,7 seconde</b>, puis relâchement, revient à la liste principale depuis un dossier. Dans une fiche ouverte, ce bouton ferme la fiche.</li>
     </ul>
 
