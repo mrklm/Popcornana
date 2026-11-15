@@ -241,6 +241,7 @@ macOS Catalina Intel (Python 3.8, build manuel sur un Mac Catalina) :
 python3 -m venv .venv-catalina
 source .venv-catalina/bin/activate
 python -m pip install -r requirements-macos-catalina.txt
+QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests
 python scripts/build_release.py --target macos-intel
 ```
 

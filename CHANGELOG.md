@@ -4,6 +4,10 @@ Toutes les modifications notables de Popcornana sont documentées ici.
 
 Le projet suit une logique de versionnement sémantique: `MAJEUR.MINEUR.CORRECTIF`.
 
+## [Non publié]
+
+- Tests : comparaison des chemins résolus dans le test de nettoyage du cache (`/var` → `/private/var` sous macOS).
+
 ## [1.0.74] - 2026-11-15
 
 - Fiches portables : une édition manuelle met de nouveau à jour `Popinfo.txt` lorsqu’il a été copié depuis un doublon, laissé par une vidéo renommée ou écrit avec une autre normalisation des accents (macOS).
